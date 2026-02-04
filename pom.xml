@@ -6,7 +6,8 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.2.2</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <relativePath/>
+        <!-- lookup parent from repository -->
     </parent>
     <groupId>com.bit</groupId>
     <artifactId>bit-industrial-iot</artifactId>
@@ -14,11 +15,16 @@
     <packaging>pom</packaging>
     <name>bit-industrial-iot</name>
     <description>bit-industrial-iot</description>
-
     <modules>
+        <module>iot-common</module>
         <module>iot-gateway-service</module>
+        <module>iot-auth-service</module>
+        <module>iot-user-service</module>
+        <module>iot-device-service</module>
+        <module>iot-integration-service</module>
+        <module>iot-flink-service</module>
+        <module>iot-data-service</module>
     </modules>
-
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -36,7 +42,6 @@
         <mybatis-generator.version>3.5.7</mybatis-generator.version>
         <mysql-connector.version>8.3.0</mysql-connector.version>
     </properties>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -62,7 +67,6 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
     <build>
         <plugins>
             <!--解决SpringBoot 3.2 Parameter Name Retention 问题-->
@@ -77,7 +81,6 @@
             </plugin>
         </plugins>
     </build>
-
     <!--使用aliyun的镜像源提升依赖下载速度-->
     <repositories>
         <repository>
@@ -91,7 +94,6 @@
             <url>https://repo1.maven.org/maven2/</url>
         </repository>
     </repositories>
-
     <!--使用aliyun的镜像源提升插件下载速度-->
     <pluginRepositories>
         <pluginRepository>
@@ -105,5 +107,4 @@
             <url>https://repo1.maven.org/maven2/</url>
         </pluginRepository>
     </pluginRepositories>
-
 </project>
