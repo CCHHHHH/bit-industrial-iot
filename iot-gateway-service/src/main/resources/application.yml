@@ -2,9 +2,28 @@ server:
   port: 9000
 
 spring:
+  main:
+    web-application-type: reactive
   application:
     name: iot-gateway-service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
   cloud:
+    gateway:
+      routes:
+        - id: iot-system-service
+          uri: lb://iot-system-service
+          predicates:
+            - Path=/api/system/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=X-Forwarded-Proto, http
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.loadbalancer: DEBUG
+    com.alibaba.cloud.nacos: INFO

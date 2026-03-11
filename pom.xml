@@ -35,11 +35,11 @@
         <spring-boot.version>3.2.2</spring-boot.version>
         <spring-boot-admin.version>3.2.2</spring-boot-admin.version>
         <spring-cloud.version>2023.0.1</spring-cloud.version>
-        <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
+        <spring-cloud-alibaba.version>2023.0.1.2</spring-cloud-alibaba.version>
         <knife4j.version>4.5.0</knife4j.version>
         <sa-token.version>1.37.0</sa-token.version>
-        <mybatis-plus-spring-boot-starter.version>3.5.7</mybatis-plus-spring-boot-starter.version>
-        <mybatis-generator.version>3.5.7</mybatis-generator.version>
+        <mybatis-plus-spring-boot-starter.version>3.5.10.1</mybatis-plus-spring-boot-starter.version>
+        <mybatis-generator.version>3.5.10.1</mybatis-generator.version>
         <mysql-connector.version>8.4.0</mysql-connector.version>
     </properties>
     <dependencyManagement>
@@ -68,8 +68,45 @@
 
             <dependency>
                 <groupId>com.bit</groupId>
-                <artifactId>iot-common</artifactId>
+                <artifactId>common-core</artifactId>
                 <version>0.0.1-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.bit</groupId>
+                <artifactId>common-security</artifactId>
+                <version>0.0.1-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>javax.validation</groupId>
+                <artifactId>validation-api</artifactId>
+                <version>2.0.1.Final</version>
+            </dependency>
+
+            <!-- 移除 javax.servlet API 兼容依赖 -->
+            <!-- <dependency>
+                <groupId>javax.servlet</groupId>
+                <artifactId>javax.servlet-api</artifactId>
+                <version>4.0.1</version>
+            </dependency> -->
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>0.13.0</version> <!-- 或者更新的版本如 0.12.x -->
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-impl</artifactId>
+                <version>0.13.0</version>
+                <scope>runtime</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-jackson</artifactId> <!-- 或者 jjwt-gson，如果你用的是 Gson -->
+                <version>0.13.0</version>
+                <scope>runtime</scope>
             </dependency>
 
             <dependency>
@@ -82,6 +119,18 @@
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-boot-starter</artifactId>
                 <version>${mybatis-plus-spring-boot-starter.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <artifactId>mybatis-spring</artifactId>
+                        <groupId>org.mybatis</groupId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis-spring</artifactId>
+                <version>3.0.3</version>
             </dependency>
 
             <dependency>
@@ -99,13 +148,13 @@
             <dependency>
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
-                <version>1.18.26</version>
+                <version>1.18.30</version>
             </dependency>
 
             <dependency>
                 <groupId>com.github.xiaoymin</groupId>
-                <artifactId>knife4j-spring-boot-starter</artifactId>
-                <version>3.0.3</version>
+                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+                <version>4.5.0</version>
             </dependency>
 
         </dependencies>

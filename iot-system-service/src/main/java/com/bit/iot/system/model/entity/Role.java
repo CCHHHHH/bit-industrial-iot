@@ -7,8 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Date;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -25,7 +24,7 @@ import lombok.experimental.Accessors;
 @Setter
 @Accessors(chain = true)
 @TableName("role")
-@ApiModel(value = "Role对象", description = "角色表")
+@Schema(description = "角色实体")
 public class Role implements Serializable {
 
     @Serial
@@ -34,7 +33,7 @@ public class Role implements Serializable {
     @TableId("id")
     private String id;
 
-    @ApiModelProperty("角色名称")
+    @Schema(description = "角色名称")
     @TableField("role_name")
     private String roleName;
 

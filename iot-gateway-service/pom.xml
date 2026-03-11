@@ -25,6 +25,11 @@
             <artifactId>spring-cloud-starter-gateway</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
         <!-- 服务发现（Nacos） -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
@@ -47,6 +52,29 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <!-- 公共安全模块 -->
+        <dependency>
+            <groupId>com.bit</groupId>
+            <artifactId>common-security</artifactId>
+            <exclusions>
+                <!-- 排除 spring-boot-starter-web，因为 Gateway 使用 WebFlux -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+                <!-- 排除 AOP，避免不必要的依赖 -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-aop</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.bit</groupId>
+            <artifactId>common-core</artifactId>
         </dependency>
 
         <!-- 监控 -->

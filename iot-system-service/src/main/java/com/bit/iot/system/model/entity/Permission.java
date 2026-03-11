@@ -6,8 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.io.Serial;
 import java.io.Serializable;
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -24,7 +23,7 @@ import lombok.experimental.Accessors;
 @Setter
 @Accessors(chain = true)
 @TableName("permission")
-@ApiModel(value = "Permission对象", description = "权限表")
+@Schema(description = "权限实体")
 public class Permission implements Serializable {
 
     @Serial
@@ -33,19 +32,19 @@ public class Permission implements Serializable {
     @TableId("id")
     private String id;
 
-    @ApiModelProperty("权限名")
+    @Schema(description = "权限名")
     @TableField("permission_name")
     private String permissionName;
 
-    @ApiModelProperty("权限代码")
+    @Schema(description = "权限代码")
     @TableField("permission_code")
     private String permissionCode;
 
-    @ApiModelProperty("权限描述")
+    @Schema(description = "权限描述")
     @TableField("permission_desc")
     private String permissionDesc;
 
-    @ApiModelProperty("权限类型")
+    @Schema(description = "权限类型")
     @TableField("permission_type")
     private String permissionType;
 }
