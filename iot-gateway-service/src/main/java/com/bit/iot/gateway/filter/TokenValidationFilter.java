@@ -71,8 +71,7 @@ public class TokenValidationFilter implements GlobalFilter, Ordered {
      * 判断是否在白名单中
      */
     private boolean isWhitelist(String path) {
-        return path.equals("/user/login") ||           // 登录接口
-               path.contains("/user/list") ||             // 错误页面
+        return path.endsWith("/login") ||           // 登录接口
                path.startsWith("/error") ||             // 错误页面
                path.startsWith("/favicon.ico") ||       // 图标
                path.startsWith("/swagger") ||           // Swagger 文档

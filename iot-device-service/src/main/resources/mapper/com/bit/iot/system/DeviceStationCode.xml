@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bit.iot.device.dao.DeviceStationCodeMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.bit.iot.device.model.entity.DeviceStationCode">
+        <id column="id" property="id" />
+        <result column="device_id" property="deviceId" />
+        <result column="station_code" property="stationCode" />
+        <result column="station_name" property="stationName" />
+        <result column="standard_station_code" property="standardStationCode" />
+        <result column="station_desc" property="stationDesc" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, device_id, station_code, station_name, standard_station_code, station_desc
+    </sql>
+
+</mapper>

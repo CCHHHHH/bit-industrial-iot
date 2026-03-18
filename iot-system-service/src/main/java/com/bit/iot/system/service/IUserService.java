@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.bit.iot.system.model.dto.UserDto;
 import com.bit.iot.system.model.entity.User;
+import com.bit.iot.system.model.vo.LoginUserVO;
+import com.bit.iot.system.model.request.LoginRequest;
 
 import java.util.List;
 
@@ -72,10 +74,17 @@ public interface IUserService extends IService<User> {
     
     /**
      * 从用户中删除指定角色
-     * @param userId 用户 ID
-     * @param roleId 角色 ID
+     * @param userId 用户ID
+     * @param roleId 角色ID
      * @return 是否成功
      */
     boolean removeRoleFromUser(String userId, String roleId);
+    
+    /**
+     * 用户登录
+     * @param loginRequest 登录请求参数
+     * @return 登录用户信息（包含 token）
+     */
+    LoginUserVO login(LoginRequest loginRequest);
     
 }

@@ -4,13 +4,14 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.bit.iot.security.annotation.RequirePermission;
 import com.bit.iot.security.context.UserContextHolder;
+import com.bit.iot.system.model.request.LoginRequest;
+import com.bit.iot.system.model.vo.LoginUserVO;
 import com.bit.iot.system.service.IUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * <p>
@@ -22,13 +23,33 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/login")
-@Tag(name = "用户登录管理", description = "用户登录管理")
+@Tag(name = "用户登录管理", description = "用户登录相关接口")
 public class LoginController extends BaseController {
 
     @Autowired
     private IUserService userService;
 
+    /**
+     * 用户登录接口
+     */
+    @PostMapping
+    @Operation(summary = "用户登录")
+    public Result<LoginUserVO> login(@Valid @RequestBody LoginRequest loginRequest) {
+        LoginUserVO loginUserVO = userService.login(loginRequest);
+        return success(loginUserVO);
+    }
 
+    /**
+     * 用户注销登录
+     */
+    @PostMapping("/logout")
+    @Operation(summary = "用户注销")
+    @RequirePermission(requireLogin = true)
+    public Result<Void> logout() {
+        // 清除用户上下文
+        UserContextHolder.clearContext();
+        return success();
+    }
 
     @GetMapping("/current")
     @Operation(summary = "获取当前登录用户")

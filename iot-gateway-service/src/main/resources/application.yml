@@ -11,11 +11,33 @@ spring:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
   cloud:
     gateway:
+      # 全局 CORS 跨域配置
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedHeaders: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowCredentials: true
+            maxAge: 3600
       routes:
         - id: iot-system-service
           uri: lb://iot-system-service
           predicates:
             - Path=/api/system/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=X-Forwarded-Proto, http
+        - id: iot-device-service
+          uri: lb://iot-device-service
+          predicates:
+            - Path=/api/device/**
           filters:
             - StripPrefix=2
             - AddRequestHeader=X-Forwarded-Proto, http

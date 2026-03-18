@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bit.iot.device.dao.DeviceEventMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.bit.iot.device.model.entity.DeviceEvent">
+        <id column="id" property="id" />
+        <result column="device_id" property="deviceId" />
+        <result column="event_time" property="eventTime" />
+        <result column="event_message" property="eventMessage" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, device_id, event_time, event_message
+    </sql>
+
+</mapper>

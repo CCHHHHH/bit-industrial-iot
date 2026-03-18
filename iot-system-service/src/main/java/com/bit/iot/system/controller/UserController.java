@@ -97,16 +97,4 @@ public class UserController extends BaseController {
         boolean success = userService.removeRoleFromUser(userId, roleId);
         return success ? success("角色移除成功") : error("角色移除失败");
     }
-
-    @GetMapping("/current")
-    @Operation(summary = "获取当前登录用户信息（演示权限注解）")
-    @RequirePermission(requireLogin = true)
-    public Result<String> getCurrentUserInfo() {
-        // 从 ThreadLocal 中获取用户信息
-        var context = UserContextHolder.getContext();
-        if (context != null) {
-            return success("当前用户：" + context.getUsername());
-        }
-        return error("未获取到用户信息");
-    }
 }

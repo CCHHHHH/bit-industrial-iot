@@ -1,4 +1,4 @@
-package com.bit.iot.system.config;
+package com.bit.iot.device.config;
 
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@MapperScan("com.bit.iot.system.dao")
+@MapperScan("com.bit.iot.device.dao")
 public class MyBatisPlusConfig {
 
     @Bean

@@ -1,15 +1,18 @@
 package com.bit.iot.system.service.impl;
 
 import bit.iot.common.utils.MD5Util;
+import bit.iot.common.utils.TokenUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bit.iot.system.dao.UserMapper;
+import com.bit.iot.system.dao.UserRoleMapper;
 import com.bit.iot.system.model.dto.UserDto;
 import com.bit.iot.system.model.entity.User;
 import com.bit.iot.system.model.entity.UserRole;
-import com.bit.iot.system.dao.UserRoleMapper;
+import com.bit.iot.system.model.request.LoginRequest;
+import com.bit.iot.system.model.vo.LoginUserVO;
 import com.bit.iot.system.service.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -139,6 +142,47 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         int deleted = userRoleMapper.delete(deleteWrapper);
         
         return deleted > 0;
+    }
+
+    @Override
+    public LoginUserVO login(LoginRequest loginRequest) {
+        // 1. 根据用户名查询用户
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("username", loginRequest.getUsername());
+        User user = this.getOne(queryWrapper);
+        
+        if (user == null) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+        
+        // 2. 验证密码
+        String encryptedPassword = MD5Util.md5WithSalt(loginRequest.getPassword(), user.getUsername());
+        if (!encryptedPassword.equals(user.getPassword())) {
+            throw new RuntimeException("用户名或密码错误");
+        }
+        
+        // 3. 生成 Token
+        String token = TokenUtil.generateToken(user.getId(), user.getUsername());
+        
+        // 4. 获取用户角色列表
+        QueryWrapper<UserRole> roleQueryWrapper = new QueryWrapper<>();
+        roleQueryWrapper.eq("user_id", user.getId());
+        List<UserRole> userRoles = userRoleMapper.selectList(roleQueryWrapper);
+        List<String> roles = userRoles.stream()
+                .map(UserRole::getRoleId)
+                .toList();
+        
+        // 5. TODO: 获取用户权限列表（暂时返回空列表）
+        List<String> permissions = List.of();
+        
+        // 6. 构建返回结果
+        return LoginUserVO.builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .token(token)
+                .roles(roles)
+                .permissions(permissions)
+                .build();
     }
 
 }
