@@ -5,11 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.bit</groupId>
-        <artifactId>bit-industrial-iot</artifactId>
+        <artifactId>iot-common</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>iot-flink-service</artifactId>
+    <artifactId>common-flink</artifactId>
+    <description>规则引擎公共模块 - 算法接口、数据模型（供 iot-rule-service 和 iot-flink-job 共同依赖）</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -17,4 +18,14 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+    </dependencies>
 </project>

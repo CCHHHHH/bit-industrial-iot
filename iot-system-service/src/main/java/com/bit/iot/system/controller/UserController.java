@@ -5,7 +5,7 @@ import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.security.annotation.RequirePermission;
 import com.bit.iot.security.context.UserContextHolder;
-import com.bit.iot.system.model.dto.UserDto;
+import com.bit.iot.system.model.dto.UserResponseDto;
 import com.bit.iot.system.model.entity.User;
 import com.bit.iot.system.service.IUserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,12 +33,12 @@ public class UserController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询用户列表")
-    public Result<List<UserDto>> getUserList(
+    public Result<List<UserResponseDto>> getUserList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String username) {
-        Page<UserDto> page = new Page<>(current, size);
-        Page<UserDto> result = userService.getUserListWithRoles(page, username);
+        Page<UserResponseDto> page = new Page<>(current, size);
+        Page<UserResponseDto> result = userService.getUserListWithRoles(page, username);
         return success(result);
     }
 

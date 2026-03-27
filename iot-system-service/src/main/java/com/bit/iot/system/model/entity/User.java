@@ -53,4 +53,16 @@ public class User implements Serializable {
     @Schema(description = "修改时间")
     @TableField("update_time")
     private Date updateTime;
+
+    @Schema(description = "中文姓名")
+    @TableField("name_cn")
+    private String nameCn;
+
+    @Schema(description = "邮箱")
+    @TableField("email")
+    private String email;
+
+    @Schema(description = "状态（0-禁用，1-启用）")
+    @TableField("status")
+    private Integer status;
 }

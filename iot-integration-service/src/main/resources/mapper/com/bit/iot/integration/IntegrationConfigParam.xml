@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.bit.iot.integration.dao.IntegrationConfigParamMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.bit.iot.integration.model.entity.IntegrationConfigParam">
+        <id column="id" property="id" />
+        <result column="integration_id" property="integrationId" />
+        <result column="param_key" property="paramKey" />
+        <result column="param_value" property="paramValue" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, integration_id, param_key, param_value
+    </sql>
+
+</mapper>

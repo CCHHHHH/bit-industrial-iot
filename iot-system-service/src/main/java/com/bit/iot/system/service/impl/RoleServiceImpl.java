@@ -66,6 +66,14 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean addRole(Role role, List<String> permissionIds) {
+        // 检查角色名称是否已存在
+        QueryWrapper<Role> checkWrapper = new QueryWrapper<>();
+        checkWrapper.eq("role_name", role.getRoleName());
+        Long count = this.count(checkWrapper);
+        if (count > 0) {
+            throw new RuntimeException("角色名称已存在");
+        }
+        
         Date now = new Date();
         role.setCreateTime(now);
         role.setUpdateTime(now);
@@ -92,6 +100,15 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean editRole(Role role, List<String> permissionIds) {
+        // 检查角色名称是否已被其他角色使用
+        QueryWrapper<Role> checkWrapper = new QueryWrapper<>();
+        checkWrapper.eq("role_name", role.getRoleName())
+                    .ne("id", role.getId());
+        Long count = this.count(checkWrapper);
+        if (count > 0) {
+            throw new RuntimeException("角色名称已存在");
+        }
+        
         Date now = new Date();
         role.setUpdateTime(now);
         

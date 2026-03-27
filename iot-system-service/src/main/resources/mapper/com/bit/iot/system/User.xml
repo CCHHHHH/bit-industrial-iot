@@ -10,19 +10,29 @@
         <result column="phone_number" property="phoneNumber" />
         <result column="create_time" property="createTime" />
         <result column="update_time" property="updateTime" />
+        <result column="name_cn" property="nameCn" />
+        <result column="email" property="email" />
+        <result column="status" property="status" />
     </resultMap>
 
-    <!-- 通用查询结果列 -->
+    <!-- 通用查询结果列（包含密码） -->
     <sql id="Base_Column_List">
-        id, username, password, phone_number, create_time, update_time
+        id, username, password, phone_number, create_time, update_time, name_cn, email, status
+    </sql>
+    
+    <!-- 通用查询结果列（不包含密码） -->
+    <sql id="User_Response_Column_List">
+        id, username, phone_number, name_cn, email, status, create_time, update_time
     </sql>
 
-    <!-- 用户角色联合查询结果映射 -->
-    <resultMap id="UserDtoResultMap" type="com.bit.iot.system.model.dto.UserDto">
+    <!-- 用户响应 DTO 结果映射 (不包含密码) -->
+    <resultMap id="UserResponseDtoResultMap" type="com.bit.iot.system.model.dto.UserResponseDto">
         <id column="user_id" property="id" />
         <result column="username" property="username" />
-        <result column="password" property="password" />
         <result column="phone_number" property="phoneNumber" />
+        <result column="name_cn" property="nameCn" />
+        <result column="email" property="email" />
+        <result column="status" property="status" />
         <result column="create_time" property="createTime" />
         <result column="update_time" property="updateTime" />
         <collection property="roles" ofType="com.bit.iot.system.model.dto.RoleDto" javaType="java.util.List">
@@ -33,13 +43,15 @@
         </collection>
     </resultMap>
 
-    <!-- 查询用户列表（包含角色信息） -->
-    <select id="selectUserListWithRoles" resultMap="UserDtoResultMap">
+    <!-- 查询用户列表（包含角色信息，不包含密码） -->
+    <select id="selectUserListWithRoles" resultMap="UserResponseDtoResultMap">
         SELECT 
             u.id as user_id,
             u.username,
-            u.password,
             u.phone_number,
+            u.name_cn,
+            u.email,
+            u.status,
             u.create_time,
             u.update_time,
             r.id as role_id,

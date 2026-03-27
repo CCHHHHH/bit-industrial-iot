@@ -22,7 +22,8 @@
         <module>iot-system-service</module>
         <module>iot-device-service</module>
         <module>iot-integration-service</module>
-        <module>iot-flink-service</module>
+        <module>iot-rule-service</module>
+        <module>iot-flink-job</module>
         <module>iot-data-service</module>
     </modules>
     <properties>
@@ -75,6 +76,12 @@
             <dependency>
                 <groupId>com.bit</groupId>
                 <artifactId>common-security</artifactId>
+                <version>0.0.1-SNAPSHOT</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.bit</groupId>
+                <artifactId>common-flink</artifactId>
                 <version>0.0.1-SNAPSHOT</version>
             </dependency>
 

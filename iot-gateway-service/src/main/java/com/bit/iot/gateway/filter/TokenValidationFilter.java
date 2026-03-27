@@ -71,14 +71,7 @@ public class TokenValidationFilter implements GlobalFilter, Ordered {
      * 判断是否在白名单中
      */
     private boolean isWhitelist(String path) {
-        return path.endsWith("/login") ||           // 登录接口
-               path.startsWith("/error") ||             // 错误页面
-               path.startsWith("/favicon.ico") ||       // 图标
-               path.startsWith("/swagger") ||           // Swagger 文档
-               path.startsWith("/v2/api-docs") ||       // Swagger API
-               path.startsWith("/v3/api-docs") ||       // OpenAPI
-               path.startsWith("/webjars/") ||          // Swagger 静态资源
-               path.startsWith("/doc.html");            // Knife4j 文档
+        return path.endsWith("/login");           // 登录接口
     }
     
     /**

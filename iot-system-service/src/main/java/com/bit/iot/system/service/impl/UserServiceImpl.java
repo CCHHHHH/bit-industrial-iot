@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bit.iot.system.dao.UserMapper;
 import com.bit.iot.system.dao.UserRoleMapper;
-import com.bit.iot.system.model.dto.UserDto;
+import com.bit.iot.system.model.dto.UserResponseDto;
 import com.bit.iot.system.model.entity.User;
 import com.bit.iot.system.model.entity.UserRole;
 import com.bit.iot.system.model.request.LoginRequest;
@@ -37,14 +37,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private UserRoleMapper userRoleMapper;
 
     @Override
-    public Page<UserDto> getUserListWithRoles(Page<UserDto> page, String username) {
+    public Page<UserResponseDto> getUserListWithRoles(Page<UserResponseDto> page, String username) {
         // 获取用户列表
-        Page<UserDto> userPage = new Page<>(page.getCurrent(), page.getSize());
+        Page<UserResponseDto> userPage = new Page<>(page.getCurrent(), page.getSize());
         return this.getBaseMapper().selectUserListWithRoles(userPage, username);
     }
 
     @Override
     public boolean addUser(User user) {
+        // 检查用户名是否已存在
+        QueryWrapper<User> checkWrapper = new QueryWrapper<>();
+        checkWrapper.eq("username", user.getUsername());
+        Long count = this.count(checkWrapper);
+        if (count > 0) {
+            throw new RuntimeException("用户名已存在");
+        }
+        
         // 设置默认时间
         Date now = new Date();
         user.setCreateTime(now);
@@ -60,11 +68,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     public boolean editUser(User user) {
         Date now = new Date();
         
-        // 只更新用户名和手机号，不更新密码
+        // 检查用户名是否已被其他用户使用
+        QueryWrapper<User> checkWrapper = new QueryWrapper<>();
+        checkWrapper.eq("username", user.getUsername())
+                    .ne("id", user.getId());
+        Long count = this.count(checkWrapper);
+        if (count > 0) {
+            throw new RuntimeException("用户名已存在");
+        }
+        
+        // 只更新用户名、手机号、邮箱和中文姓名，不更新密码
         UpdateWrapper<User> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq("id", user.getId())
                     .set("username", user.getUsername())
                     .set("phone_number", user.getPhoneNumber())
+                    .set("name_cn", user.getNameCn())
+                    .set("email", user.getEmail())
+                    .set("status", user.getStatus())
                     .set("update_time", now);
         
         return this.update(updateWrapper);

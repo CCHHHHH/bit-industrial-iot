@@ -3,9 +3,10 @@ package com.bit.iot.system.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.bit.iot.system.model.dto.UserDto;
+import com.bit.iot.system.model.dto.UserResponseDto;
 import com.bit.iot.system.model.entity.User;
-import com.bit.iot.system.model.vo.LoginUserVO;
 import com.bit.iot.system.model.request.LoginRequest;
+import com.bit.iot.system.model.vo.LoginUserVO;
 
 import java.util.List;
 
@@ -25,7 +26,7 @@ public interface IUserService extends IService<User> {
      * @param username 用户名
      * @return 用户列表
      */
-    Page<UserDto> getUserListWithRoles(Page<UserDto> page, String username);
+    Page<UserResponseDto> getUserListWithRoles(Page<UserResponseDto> page, String username);
     
     /**
      * 新增用户

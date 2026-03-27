@@ -17,6 +17,7 @@
         <module>common-feign</module>
         <module>common-mq</module>
         <module>common-tdengine</module>
+        <module>common-flink</module>
     </modules>
 
     <properties>

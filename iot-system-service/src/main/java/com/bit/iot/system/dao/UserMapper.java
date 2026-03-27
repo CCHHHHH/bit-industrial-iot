@@ -1,6 +1,7 @@
 package com.bit.iot.system.dao;
 
 import com.bit.iot.system.model.dto.UserDto;
+import com.bit.iot.system.model.dto.UserResponseDto;
 import com.bit.iot.system.model.entity.User;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -24,6 +25,6 @@ public interface UserMapper extends BaseMapper<User> {
      * @param username 用户名（支持模糊搜索）
      * @return 用户列表
      */
-    Page<UserDto> selectUserListWithRoles(@Param("page") Page<UserDto> page, 
+    Page<UserResponseDto> selectUserListWithRoles(@Param("page") Page<UserResponseDto> page, 
                                           @Param("username") String username);
 }
