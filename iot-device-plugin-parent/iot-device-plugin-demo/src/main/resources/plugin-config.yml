@@ -1,0 +1,19 @@
+config:
+  - key: baseUrl
+    value: http://127.0.0.1:8080
+    description: 第三方平台基础地址
+  - key: apiKey
+    value: demo-key
+    description: 调用第三方平台接口使用的鉴权密钥
+  - key: timeoutMs
+    value: "5000"
+    description: 请求超时时间，单位毫秒
+  - key: pollingIntervalSeconds
+    value: "30"
+    description: 轮询第三方设备数据的周期，单位秒
+  - key: deviceCodeField
+    value: deviceCode
+    description: 第三方设备编码字段名
+  - key: statusField
+    value: status
+    description: 第三方设备状态字段名

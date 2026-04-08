@@ -1,0 +1,43 @@
+server:
+  port: 9006
+  servlet:
+    context-path: /iot
+
+spring:
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
+  application:
+    name: iot-device-simulator-service
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/bit_iot?useUnicode=true&autoReconnect=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8&rewriteBatchedStatements=true
+    username: root
+    password: chenhao1998@
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+        namespace: public
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: assign_uuid
+
+simulator:
+  scheduler:
+    pool-size: 4
+  http:
+    connect-timeout-seconds: 5
+    read-timeout-seconds: 10
+  modbus:
+    enabled: true
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn

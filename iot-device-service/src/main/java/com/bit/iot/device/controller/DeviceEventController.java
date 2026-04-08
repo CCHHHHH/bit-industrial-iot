@@ -4,9 +4,12 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.device.model.entity.DeviceEvent;
+import com.bit.iot.device.model.request.DeviceEventRequest;
+import com.bit.iot.device.model.vo.DeviceEventVO;
 import com.bit.iot.device.service.IDeviceEventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,26 +33,32 @@ public class DeviceEventController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询设备事件列表")
-    public Result<List<DeviceEvent>> getEventList(
+    public Result<List<DeviceEventVO>> getEventList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String deviceId) {
         Page<DeviceEvent> page = new Page<>(current, size);
         Page<DeviceEvent> result = eventService.getEventList(page, deviceId);
-        return success(result);
+        Page<DeviceEventVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增设备事件")
-    public Result<Void> addEvent(@RequestBody DeviceEvent event) {
-        boolean success = eventService.addEvent(event);
+    public Result<Void> addEvent(@RequestBody DeviceEventRequest event) {
+        DeviceEvent entity = new DeviceEvent();
+        BeanUtils.copyProperties(event, entity);
+        boolean success = eventService.addEvent(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑设备事件")
-    public Result<Void> editEvent(@RequestBody DeviceEvent event) {
-        boolean success = eventService.editEvent(event);
+    public Result<Void> editEvent(@RequestBody DeviceEventRequest event) {
+        DeviceEvent entity = new DeviceEvent();
+        BeanUtils.copyProperties(event, entity);
+        boolean success = eventService.editEvent(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -62,8 +71,14 @@ public class DeviceEventController extends BaseController {
 
     @GetMapping("/by-device/{deviceId}")
     @Operation(summary = "根据设备 ID 查询事件列表")
-    public Result<List<DeviceEvent>> getEventsByDeviceId(@PathVariable String deviceId) {
+    public Result<List<DeviceEventVO>> getEventsByDeviceId(@PathVariable String deviceId) {
         List<DeviceEvent> events = eventService.getEventsByDeviceId(deviceId);
-        return success(events);
+        return success(events.stream().map(this::toVO).toList());
+    }
+
+    private DeviceEventVO toVO(DeviceEvent event) {
+        DeviceEventVO vo = new DeviceEventVO();
+        BeanUtils.copyProperties(event, vo);
+        return vo;
     }
 }

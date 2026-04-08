@@ -3,10 +3,13 @@ package com.bit.iot.integration.controller;
 import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.bit.iot.integration.model.entity.IntegrationConfigParam;
+import com.bit.iot.integration.model.request.IntegrationConfigParamRequest;
+import com.bit.iot.integration.model.vo.IntegrationConfigParamVO;
 import com.bit.iot.integration.service.IIntegrationConfigParamService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,24 +33,28 @@ public class IntegrationConfigParamController extends BaseController {
 
     @GetMapping("/list/{integrationId}")
     @Operation(summary = "查询集成实例参数列表")
-    public Result<List<IntegrationConfigParam>> getConfigParamList(
+    public Result<List<IntegrationConfigParamVO>> getConfigParamList(
             @Parameter(description = "集成实例 ID", required = true)
             @PathVariable String integrationId) {
         List<IntegrationConfigParam> list = configParamService.getConfigParamsByIntegrationId(integrationId);
-        return success(list);
+        return success(list.stream().map(this::toVO).toList());
     }
 
     @PostMapping
     @Operation(summary = "新增配置参数")
-    public Result<Void> addConfigParam(@RequestBody IntegrationConfigParam configParam) {
-        boolean success = configParamService.addConfigParam(configParam);
+    public Result<Void> addConfigParam(@RequestBody IntegrationConfigParamRequest configParam) {
+        IntegrationConfigParam entity = new IntegrationConfigParam();
+        BeanUtils.copyProperties(configParam, entity);
+        boolean success = configParamService.addConfigParam(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑配置参数")
-    public Result<Void> editConfigParam(@RequestBody IntegrationConfigParam configParam) {
-        boolean success = configParamService.editConfigParam(configParam);
+    public Result<Void> editConfigParam(@RequestBody IntegrationConfigParamRequest configParam) {
+        IntegrationConfigParam entity = new IntegrationConfigParam();
+        BeanUtils.copyProperties(configParam, entity);
+        boolean success = configParamService.editConfigParam(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -64,8 +71,19 @@ public class IntegrationConfigParamController extends BaseController {
     public Result<Void> saveConfigParams(
             @Parameter(description = "集成实例 ID", required = true)
             @PathVariable String integrationId,
-            @RequestBody List<IntegrationConfigParam> paramList) {
-        boolean success = configParamService.saveConfigParams(integrationId, paramList);
+            @RequestBody List<IntegrationConfigParamRequest> paramList) {
+        List<IntegrationConfigParam> entities = (paramList == null ? java.util.List.<IntegrationConfigParamRequest>of() : paramList).stream().map(item -> {
+            IntegrationConfigParam entity = new IntegrationConfigParam();
+            BeanUtils.copyProperties(item, entity);
+            return entity;
+        }).toList();
+        boolean success = configParamService.saveConfigParams(integrationId, entities);
         return success ? success("保存成功") : error("保存失败");
+    }
+
+    private IntegrationConfigParamVO toVO(IntegrationConfigParam param) {
+        IntegrationConfigParamVO vo = new IntegrationConfigParamVO();
+        BeanUtils.copyProperties(param, vo);
+        return vo;
     }
 }

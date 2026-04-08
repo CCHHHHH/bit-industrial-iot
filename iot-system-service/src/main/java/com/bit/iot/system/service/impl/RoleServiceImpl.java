@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bit.iot.system.dao.RoleMapper;
 import com.bit.iot.system.dao.RolePermissionMapper;
+import com.bit.iot.system.model.dto.PermissionDto;
 import com.bit.iot.system.model.dto.RoleDto;
 import com.bit.iot.system.model.entity.Permission;
 import com.bit.iot.system.model.entity.Role;
@@ -15,8 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -35,12 +35,40 @@ public class RoleServiceImpl extends ServiceImpl<RoleMapper, Role> implements IR
 
     @Override
     public Page<RoleDto> getRoleListWithPermissions(Page<RoleDto> page) {
-        return this.getBaseMapper().selectRoleListWithPermissions(page, null);
+        return getRoleListWithPermissions(page, null);
     }
 
     @Override
     public Page<RoleDto> getRoleListWithPermissions(Page<RoleDto> page, String roleName) {
-        return this.getBaseMapper().selectRoleListWithPermissions(page, roleName);
+        // 1. 先分页查询角色列表（不包含权限）
+        Page<RoleDto> rolePage = this.getBaseMapper().selectRolePage(page, roleName);
+        
+        // 2. 如果角色列表为空，直接返回
+        if (rolePage.getRecords() == null || rolePage.getRecords().isEmpty()) {
+            return rolePage;
+        }
+        
+        // 3. 提取所有角色 ID
+        List<String> roleIds = rolePage.getRecords().stream()
+                .map(Role::getId)
+                .collect(Collectors.toList());
+        
+        // 4. 批量查询这些角色的权限信息
+        List<PermissionDto> allPermissions = this.getBaseMapper().selectPermissionsByRoleIds(roleIds);
+        
+        // 5. 按角色 ID 分组权限
+        Map<String, List<Permission>> permissionMap = new HashMap<>();
+        for (PermissionDto perm : allPermissions) {
+            permissionMap.computeIfAbsent(perm.getRoleId(), k -> new ArrayList<>()).add(perm);
+        }
+        
+        // 6. 为每个角色分配权限
+        for (RoleDto role : rolePage.getRecords()) {
+            List<Permission> permissions = permissionMap.getOrDefault(role.getId(), new ArrayList<>());
+            role.setPermissions(permissions);
+        }
+        
+        return rolePage;
     }
 
     @Override

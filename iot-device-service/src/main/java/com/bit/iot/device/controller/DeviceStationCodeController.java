@@ -4,9 +4,12 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.device.model.entity.DeviceStationCode;
+import com.bit.iot.device.model.request.DeviceStationCodeRequest;
+import com.bit.iot.device.model.vo.DeviceStationCodeVO;
 import com.bit.iot.device.service.IDeviceStationCodeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,26 +33,32 @@ public class DeviceStationCodeController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询设备测点列表")
-    public Result<List<DeviceStationCode>> getStationCodeList(
+    public Result<List<DeviceStationCodeVO>> getStationCodeList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String deviceId) {
         Page<DeviceStationCode> page = new Page<>(current, size);
         Page<DeviceStationCode> result = stationCodeService.getStationCodeList(page, deviceId);
-        return success(result);
+        Page<DeviceStationCodeVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增设备测点")
-    public Result<Void> addStationCode(@RequestBody DeviceStationCode stationCode) {
-        boolean success = stationCodeService.addStationCode(stationCode);
+    public Result<Void> addStationCode(@RequestBody DeviceStationCodeRequest stationCode) {
+        DeviceStationCode entity = new DeviceStationCode();
+        BeanUtils.copyProperties(stationCode, entity);
+        boolean success = stationCodeService.addStationCode(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑设备测点")
-    public Result<Void> editStationCode(@RequestBody DeviceStationCode stationCode) {
-        boolean success = stationCodeService.editStationCode(stationCode);
+    public Result<Void> editStationCode(@RequestBody DeviceStationCodeRequest stationCode) {
+        DeviceStationCode entity = new DeviceStationCode();
+        BeanUtils.copyProperties(stationCode, entity);
+        boolean success = stationCodeService.editStationCode(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -62,8 +71,14 @@ public class DeviceStationCodeController extends BaseController {
 
     @GetMapping("/by-device/{deviceId}")
     @Operation(summary = "根据设备 ID 查询测点列表")
-    public Result<List<DeviceStationCode>> getStationCodesByDeviceId(@PathVariable String deviceId) {
+    public Result<List<DeviceStationCodeVO>> getStationCodesByDeviceId(@PathVariable String deviceId) {
         List<DeviceStationCode> stationCodes = stationCodeService.getStationCodesByDeviceId(deviceId);
-        return success(stationCodes);
+        return success(stationCodes.stream().map(this::toVO).toList());
+    }
+
+    private DeviceStationCodeVO toVO(DeviceStationCode stationCode) {
+        DeviceStationCodeVO vo = new DeviceStationCodeVO();
+        BeanUtils.copyProperties(stationCode, vo);
+        return vo;
     }
 }

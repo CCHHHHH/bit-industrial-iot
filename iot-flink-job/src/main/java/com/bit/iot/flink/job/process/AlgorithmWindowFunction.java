@@ -2,9 +2,11 @@ package com.bit.iot.flink.job.process;
 
 import com.bit.iot.common.flink.AlgorithmResult;
 import com.bit.iot.common.flink.DataPoint;
-import com.bit.iot.flink.job.model.AlgorithmOutputEvent;
-import com.bit.iot.flink.job.model.DeviceDataEvent;
-import org.apache.flink.configuration.Configuration;
+import com.bit.iot.common.flink.algorithm.JarAlgorithmLoader;
+import com.bit.iot.common.flink.algorithm.PythonAlgorithmExecutor;
+import com.bit.iot.common.flink.connector.model.AlgorithmOutputEvent;
+import com.bit.iot.common.flink.connector.model.DeviceDataEvent;
+import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
@@ -34,8 +36,8 @@ public class AlgorithmWindowFunction
     private final String algorithmClass;
     private final Map<String, String> ruleParams;
 
-    /** JAR 算法调用器（懒加载） */
-    private transient JarAlgorithmInvoker jarInvoker;
+    /** JAR 算法加载器（懒加载，在 open 中初始化） */
+    private transient JarAlgorithmLoader jarLoader;
 
     public AlgorithmWindowFunction(String ruleId,
                                    String algorithmType,
@@ -50,23 +52,23 @@ public class AlgorithmWindowFunction
     }
 
     @Override
-    public void open(Configuration parameters) throws Exception {
+    public void open(OpenContext openContext) throws Exception {
         if ("jar".equalsIgnoreCase(algorithmType)) {
-            jarInvoker = new JarAlgorithmInvoker();
-            jarInvoker.load(algorithmPath, algorithmClass);
+            jarLoader = new JarAlgorithmLoader();
+            jarLoader.load(algorithmPath, algorithmClass);
         }
     }
 
     @Override
     public void close() throws Exception {
-        if (jarInvoker != null) {
-            jarInvoker.close();
+        if (jarLoader != null) {
+            jarLoader.close();
         }
     }
 
     @Override
     public void process(String key,
-                        ProcessWindowFunction<DeviceDataEvent, AlgorithmOutputEvent, String, TimeWindow>.Context context,
+                        Context context,
                         Iterable<DeviceDataEvent> elements,
                         Collector<AlgorithmOutputEvent> out) {
 
@@ -90,9 +92,9 @@ public class AlgorithmWindowFunction
 
         try {
             if ("jar".equalsIgnoreCase(algorithmType)) {
-                result = jarInvoker.execute(dataPoints, ruleParams);
+                result = jarLoader.execute(dataPoints, ruleParams);
             } else if ("python".equalsIgnoreCase(algorithmType)) {
-                result = PythonAlgorithmInvoker.execute(algorithmPath, dataPoints, ruleParams);
+                result = PythonAlgorithmExecutor.execute(algorithmPath, dataPoints, ruleParams);
             } else {
                 result = AlgorithmResult.failure("不支持的算法类型: " + algorithmType);
             }

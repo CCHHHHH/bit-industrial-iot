@@ -1,8 +1,8 @@
 package com.bit.iot.rule.model.dto;
 
-import com.bit.iot.rule.model.entity.RuleConfig;
-import com.bit.iot.rule.model.entity.RuleDataSource;
-import com.bit.iot.rule.model.entity.RuleParam;
+import com.bit.iot.rule.model.vo.RuleConfigVO;
+import com.bit.iot.rule.model.vo.RuleDataSourceVO;
+import com.bit.iot.rule.model.vo.RuleParamVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -19,7 +19,7 @@ import java.util.List;
 public class RuleConfigDetailDTO {
 
     @Schema(description = "规则基本配置")
-    private RuleConfig ruleConfig;
+    private RuleConfigVO ruleConfig;
 
     @Schema(description = "算法名称")
     private String algorithmName;
@@ -28,8 +28,8 @@ public class RuleConfigDetailDTO {
     private String algorithmType;
 
     @Schema(description = "数据源配置列表")
-    private List<RuleDataSource> dataSources;
+    private List<RuleDataSourceVO> dataSources;
 
     @Schema(description = "规则参数列表")
-    private List<RuleParam> params;
+    private List<RuleParamVO> params;
 }

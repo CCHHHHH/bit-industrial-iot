@@ -1,17 +1,18 @@
 package com.bit.iot.flink.job;
 
 import com.bit.iot.common.flink.RuleJobConfig;
-import com.bit.iot.flink.job.model.AlgorithmOutputEvent;
-import com.bit.iot.flink.job.model.DeviceDataEvent;
+import com.bit.iot.common.flink.connector.model.AlgorithmOutputEvent;
+import com.bit.iot.common.flink.connector.model.DeviceDataEvent;
+import com.bit.iot.common.flink.connector.sink.MySQLAlarmSink;
+import com.bit.iot.common.flink.connector.sink.MySQLExecutionLogSink;
+import com.bit.iot.common.flink.connector.sink.TDEngineResultSink;
+import com.bit.iot.common.flink.connector.source.MqttRealtimeSource;
+import com.bit.iot.common.flink.connector.source.TDEngineJdbcSource;
+import com.bit.iot.common.flink.connector.window.DynamicWindowAssigner;
 import com.bit.iot.flink.job.process.AlgorithmWindowFunction;
-import com.bit.iot.flink.job.sink.MySQLExecutionLogSink;
-import com.bit.iot.flink.job.sink.TDEngineResultSink;
-import com.bit.iot.flink.job.source.MqttRealtimeSource;
-import com.bit.iot.flink.job.source.TDEngineJdbcSource;
-import com.bit.iot.flink.job.window.DynamicWindowAssigner;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.configuration.ExternalizedCheckpointRetention;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
@@ -22,7 +23,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * Flink Job 唯一入口
@@ -42,8 +45,7 @@ public class RuleJobEntrypoint {
         // =============================================================
         // 1. 解析参数
         // =============================================================
-        ParameterTool params = ParameterTool.fromArgs(args);
-        String configBase64 = params.getRequired("ruleConfig");
+        String configBase64 = getRequiredArg(args, "ruleConfig");
         String configJson = new String(
                 Base64.getDecoder().decode(configBase64), StandardCharsets.UTF_8);
 
@@ -60,7 +62,6 @@ public class RuleJobEntrypoint {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(config.getParallelism());
 
-        // 自动水位线间隔
         env.getConfig().setAutoWatermarkInterval(200L);
 
         // Checkpoint 配置：每 60s，Exactly-Once
@@ -69,28 +70,39 @@ public class RuleJobEntrypoint {
         cpConfig.setMinPauseBetweenCheckpoints(30_000L);
         cpConfig.setCheckpointTimeout(120_000L);
         cpConfig.setMaxConcurrentCheckpoints(1);
-        cpConfig.setExternalizedCheckpointCleanup(
-                CheckpointConfig.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION);
+        cpConfig.setExternalizedCheckpointRetention(ExternalizedCheckpointRetention.RETAIN_ON_CANCELLATION);
 
         // =============================================================
         // 3. Source：根据触发类型选择 TDEngine JDBC 轮询 或 MQTT 实时
         // =============================================================
-        DataStream<DeviceDataEvent> source;
-
-        // 水位线策略：允许 5 秒乱序
         WatermarkStrategy<DeviceDataEvent> watermarkStrategy =
                 WatermarkStrategy.<DeviceDataEvent>forBoundedOutOfOrderness(Duration.ofSeconds(5))
                         .withTimestampAssigner((event, recordTimestamp) -> event.getTimestamp());
 
-        if ("realtime".equalsIgnoreCase(config.getTriggerType())
+        DataStream<DeviceDataEvent> source;
+
+        if (config.getMockSourceConfig() != null
+                && config.getMockSourceConfig().isEnabled()
+                && config.getMockSourceConfig().getEvents() != null
+                && !config.getMockSourceConfig().getEvents().isEmpty()) {
+            List<DeviceDataEvent> mockEvents = config.getMockSourceConfig().getEvents().stream()
+                    .map(event -> new DeviceDataEvent(
+                            event.getDeviceId(),
+                            event.getPointCode(),
+                            event.getTimestamp(),
+                            event.getValue(),
+                            event.getQuality()))
+                    .toList();
+            source = env.fromCollection(mockEvents)
+                    .name("Mock-Source")
+                    .assignTimestampsAndWatermarks(watermarkStrategy);
+        } else if ("realtime".equalsIgnoreCase(config.getTriggerType())
                 && config.getMqttConfig() != null
                 && config.getMqttConfig().getBrokerUrl() != null) {
-            // 实时模式：MQTT Source
             source = env.addSource(new MqttRealtimeSource(config))
                     .name("MQTT-Source")
                     .assignTimestampsAndWatermarks(watermarkStrategy);
         } else {
-            // 定时模式（默认）：TDEngine JDBC 轮询 Source
             long pollInterval = config.getWindowSizeMs() > 0
                     ? Math.max(config.getWindowSizeMs() / 4, 5000L)
                     : 15_000L;
@@ -105,10 +117,8 @@ public class RuleJobEntrypoint {
         KeyedStream<DeviceDataEvent, String> keyed;
 
         if ("device".equalsIgnoreCase(config.getKeyStrategy())) {
-            // 按设备分组（算法可同时处理同一设备的多个测点）
             keyed = source.keyBy(DeviceDataEvent::getDeviceId);
         } else {
-            // 默认：按 deviceId#pointCode 分组（每个测点独立窗口）
             keyed = source.keyBy(e -> e.getDeviceId() + "#" + e.getPointCode());
         }
 
@@ -129,20 +139,21 @@ public class RuleJobEntrypoint {
         // =============================================================
         // 6. Sink：结果多路输出
         // =============================================================
-
-        // Sink-1：TDEngine 结果回写
-        if (config.getTdengineConfig() != null && config.getTdengineConfig().getJdbcUrl() != null) {
+        if (config.getTdengineConfig() != null
+                && config.getTdengineConfig().isEnabled()
+                && config.getTdengineConfig().getJdbcUrl() != null
+                && !config.getTdengineConfig().getJdbcUrl().isBlank()) {
             result.addSink(new TDEngineResultSink(config.getTdengineConfig()))
                     .name("TDEngine-Result-Sink");
         }
 
-        // Sink-2：MySQL 执行日志
         if (config.getMysqlConfig() != null && config.getMysqlConfig().getJdbcUrl() != null) {
             result.addSink(new MySQLExecutionLogSink(config.getMysqlConfig()))
                     .name("MySQL-Log-Sink");
+            result.addSink(new MySQLAlarmSink(config))
+                    .name("MySQL-Alarm-Sink");
         }
 
-        // 兜底：打印到日志（调试用）
         result.print().name("Debug-Print-Sink");
 
         // =============================================================
@@ -150,5 +161,15 @@ public class RuleJobEntrypoint {
         // =============================================================
         String jobName = "RuleJob-" + config.getRuleId() + "-" + config.getRuleName();
         env.execute(jobName);
+    }
+
+    private static String getRequiredArg(String[] args, String key) {
+        String option = "--" + key;
+        for (int i = 0; i < args.length - 1; i++) {
+            if (option.equals(args[i])) {
+                return args[i + 1];
+            }
+        }
+        throw new IllegalArgumentException("缺少必填参数 " + option + "，当前参数: " + Arrays.toString(args));
     }
 }

@@ -3,6 +3,7 @@ package com.bit.iot.integration.plugin;
 import com.bit.iot.integration.model.entity.IntegrationConfig;
 import com.bit.iot.integration.model.entity.IntegrationPlugin;
 import com.bit.iot.integration.service.IIntegrationConfigService;
+import com.bit.iot.integration.service.IIntegrationConfigParamService;
 import com.bit.iot.integration.service.IIntegrationPluginService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,9 @@ public class PluginManager {
     @Autowired
     @Lazy
     private IIntegrationConfigService integrationConfigService;
+
+    @Autowired
+    private IIntegrationConfigParamService integrationConfigParamService;
     
     /**
      * 应用启动完成后加载已启用的插件
@@ -217,7 +221,16 @@ public class PluginManager {
      * @throws Exception 执行异常
      */
     public Object invokePlugin(String pluginId, String methodName, Object... args) throws Exception {
-        return pluginLoader.invokePluginMethod(pluginId, methodName, args);
+        PluginWrapper wrapper = pluginLoader.getPlugin(pluginId);
+        if (wrapper == null || wrapper.getPluginInstance() == null) {
+            throw new IllegalStateException("插件未加载：" + pluginId);
+        }
+        return switch (methodName) {
+            case "handleDeviceProperty" -> wrapper.getPluginInstance().handleDeviceProperty((String) args[0]);
+            case "handleDeviceStatus" -> wrapper.getPluginInstance().handleDeviceStatus((String) args[0]);
+            case "handleTimeSeriesData" -> wrapper.getPluginInstance().handleTimeSeriesData((String) args[0]);
+            default -> throw new IllegalArgumentException("禁止调用未授权的插件方法: " + methodName);
+        };
     }
     
     /**
@@ -241,7 +254,8 @@ public class PluginManager {
         
         // 调用插件的 startInstance 方法
         try {
-            wrapper.execute("startInstance", integrationId, config);
+            wrapper.getPluginInstance().loadConfig(integrationConfigParamService.getConfigParamMap(integrationId));
+            wrapper.getPluginInstance().startInstance(integrationId, config);
             log.info("插件启动成功：pluginId={}, integrationId={}", pluginId, integrationId);
         } catch (Exception e) {
             log.error("插件启动失败：pluginId={}, integrationId={}", pluginId, integrationId, e);
@@ -265,7 +279,7 @@ public class PluginManager {
         
         // 调用插件的 stopInstance 方法
         try {
-            wrapper.execute("stopInstance", integrationId);
+            wrapper.getPluginInstance().stopInstance(integrationId);
             log.info("插件停止成功：pluginId={}, integrationId={}", pluginId, integrationId);
         } catch (Exception e) {
             log.error("插件停止失败：pluginId={}, integrationId={}", pluginId, integrationId, e);
@@ -279,6 +293,10 @@ public class PluginManager {
      */
     public Map<String, PluginWrapper> getLoadedPlugins() {
         return pluginLoader.getAllPlugins();
+    }
+
+    public java.util.List<com.bit.iot.integration.model.dto.PluginConfigItemDTO> readDefaultConfig(String pluginId, String pluginPath) throws Exception {
+        return pluginLoader.readDefaultConfig(pluginPath);
     }
     
     /**

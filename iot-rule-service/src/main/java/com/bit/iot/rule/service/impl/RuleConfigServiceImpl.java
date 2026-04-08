@@ -12,7 +12,11 @@ import com.bit.iot.rule.flink.FlinkJobManager;
 import com.bit.iot.rule.model.dto.RuleConfigDetailDTO;
 import com.bit.iot.rule.model.dto.RuleConfigListItemDTO;
 import com.bit.iot.rule.model.entity.*;
+import com.bit.iot.rule.model.vo.RuleConfigVO;
+import com.bit.iot.rule.model.vo.RuleDataSourceVO;
+import com.bit.iot.rule.model.vo.RuleParamVO;
 import com.bit.iot.rule.model.enums.WindowUnitEnum;
+import com.bit.iot.rule.service.IAlarmService;
 import com.bit.iot.rule.service.IRuleAlgorithmService;
 import com.bit.iot.rule.service.IRuleConfigService;
 import com.bit.iot.rule.service.IRuleExecutionLogService;
@@ -20,6 +24,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +49,9 @@ import java.util.stream.Collectors;
 public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleConfig>
         implements IRuleConfigService {
 
+    private static final String MOCK_SOURCE_ENABLED_KEY = "_mock_source_enabled";
+    private static final String MOCK_SOURCE_EVENTS_JSON_KEY = "_mock_source_events_json";
+
     @Autowired
     private RuleDataSourceMapper dataSourceMapper;
 
@@ -57,6 +65,9 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
     private IRuleExecutionLogService executionLogService;
 
     @Autowired
+    private IAlarmService alarmService;
+
+    @Autowired
     private RuleEngineManager ruleEngineManager;
 
     @Autowired
@@ -67,6 +78,12 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
 
     @Value("${rule.algorithm.shared-path:./algorithms}")
     private String sharedAlgorithmPath;
+
+    @Value("${tdengine.result-stable:rule_result_stable}")
+    private String tdengineResultStable;
+
+    @Value("${tdengine.enabled:true}")
+    private boolean tdengineEnabled;
 
     @Value("${tdengine.jdbc-url:}")
     private String tdengineJdbcUrl;
@@ -175,9 +192,19 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
                 new QueryWrapper<RuleParam>().eq("rule_id", id));
 
         RuleConfigDetailDTO dto = new RuleConfigDetailDTO();
-        dto.setRuleConfig(config);
-        dto.setDataSources(dataSources);
-        dto.setParams(params);
+        RuleConfigVO configVO = new RuleConfigVO();
+        BeanUtils.copyProperties(config, configVO);
+        dto.setRuleConfig(configVO);
+        dto.setDataSources(dataSources.stream().map(item -> {
+            RuleDataSourceVO vo = new RuleDataSourceVO();
+            BeanUtils.copyProperties(item, vo);
+            return vo;
+        }).toList());
+        dto.setParams(params.stream().map(item -> {
+            RuleParamVO vo = new RuleParamVO();
+            BeanUtils.copyProperties(item, vo);
+            return vo;
+        }).toList());
         if (algorithm != null) {
             dto.setAlgorithmName(algorithm.getAlgorithmName());
             dto.setAlgorithmType(algorithm.getAlgorithmType());
@@ -224,6 +251,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
         dataSourceMapper.delete(new QueryWrapper<RuleDataSource>().eq("rule_id", id));
         paramMapper.delete(new QueryWrapper<RuleParam>().eq("rule_id", id));
         executionLogService.clearLogsByRuleId(id);
+        alarmService.clearAlarmsByRuleId(id);
         return this.removeById(id);
     }
 
@@ -280,7 +308,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
             // ============ Flink 模式：提交 Job 到集群 ============
             RuleJobConfig jobConfig = buildRuleJobConfig(config, algorithm, dataSources, params);
             try {
-                String flinkJobId = flinkJobManager.submitJob(jobConfig);
+                String flinkJobId = flinkJobManager.submitJob(jobConfig, true);
                 config.setFlinkJobId(flinkJobId);
             } catch (Exception e) {
                 throw new RuntimeException("提交 Flink Job 失败: " + e.getMessage(), e);
@@ -343,7 +371,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
             // Flink 模式下，triggerOnce 也提交一个一次性 Job
             RuleJobConfig jobConfig = buildRuleJobConfig(config, algorithm, dataSources, params);
             try {
-                flinkJobManager.submitJob(jobConfig);
+                flinkJobManager.submitJob(jobConfig, false);
             } catch (Exception e) {
                 throw new RuntimeException("触发 Flink Job 失败: " + e.getMessage(), e);
             }
@@ -393,13 +421,12 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
 
         // 算法配置
         jobConfig.setAlgorithmType(algorithm.getAlgorithmType());
-        jobConfig.setAlgorithmPath(algorithm.getAlgorithmPath());
+        jobConfig.setAlgorithmPath(resolveFlinkAlgorithmPath(algorithm.getAlgorithmPath()));
         jobConfig.setAlgorithmClass(algorithm.getAlgorithmClass());
 
         // 自定义参数
-        if (params != null && !params.isEmpty()) {
-            Map<String, String> paramMap = new HashMap<>();
-            params.forEach(p -> paramMap.put(p.getParamKey(), p.getParamValue()));
+        Map<String, String> paramMap = buildRuleParamMap(params);
+        if (!paramMap.isEmpty()) {
             jobConfig.setRuleParams(paramMap);
         }
 
@@ -427,12 +454,16 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
         }
 
         // 连接配置
-        RuleJobConfig.TDEngineConfig tdConfig = new RuleJobConfig.TDEngineConfig();
-        tdConfig.setJdbcUrl(tdengineJdbcUrl);
-        tdConfig.setUsername(tdengineUsername);
-        tdConfig.setPassword(tdenginePassword);
-        tdConfig.setSuperTable(tdengineSuperTable);
-        jobConfig.setTdengineConfig(tdConfig);
+        if (tdengineEnabled && tdengineJdbcUrl != null && !tdengineJdbcUrl.isBlank()) {
+            RuleJobConfig.TDEngineConfig tdConfig = new RuleJobConfig.TDEngineConfig();
+            tdConfig.setEnabled(true);
+            tdConfig.setJdbcUrl(tdengineJdbcUrl);
+            tdConfig.setUsername(tdengineUsername);
+            tdConfig.setPassword(tdenginePassword);
+            tdConfig.setSuperTable(tdengineSuperTable);
+            tdConfig.setResultStable(tdengineResultStable);
+            jobConfig.setTdengineConfig(tdConfig);
+        }
 
         RuleJobConfig.MysqlConfig mysqlConfig = new RuleJobConfig.MysqlConfig();
         mysqlConfig.setJdbcUrl(mysqlJdbcUrl);
@@ -447,6 +478,80 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
         mqtt.setPassword(mqttPasswordValue);
         jobConfig.setMqttConfig(mqtt);
 
+        RuleJobConfig.MockSourceConfig mockSourceConfig = buildMockSourceConfig(params);
+        if (mockSourceConfig != null && mockSourceConfig.isEnabled()) {
+            jobConfig.setMockSourceConfig(mockSourceConfig);
+        }
+
         return jobConfig;
+    }
+
+    private Map<String, String> buildRuleParamMap(List<RuleParam> params) {
+        if (params == null || params.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> paramMap = new HashMap<>();
+        params.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getParamKey() != null && !item.getParamKey().startsWith("_mock_"))
+                .forEach(p -> paramMap.put(p.getParamKey(), p.getParamValue()));
+        return paramMap;
+    }
+
+    private RuleJobConfig.MockSourceConfig buildMockSourceConfig(List<RuleParam> params) {
+        if (params == null || params.isEmpty()) {
+            return null;
+        }
+        Map<String, String> rawParams = new HashMap<>();
+        params.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getParamKey() != null)
+                .forEach(item -> rawParams.put(item.getParamKey(), item.getParamValue()));
+
+        if (!Boolean.parseBoolean(rawParams.getOrDefault(MOCK_SOURCE_ENABLED_KEY, "false"))) {
+            return null;
+        }
+        String eventsJson = rawParams.get(MOCK_SOURCE_EVENTS_JSON_KEY);
+        if (eventsJson == null || eventsJson.isBlank()) {
+            throw new RuntimeException("启用 mock source 时必须配置 " + MOCK_SOURCE_EVENTS_JSON_KEY);
+        }
+        try {
+            List<RuleJobConfig.MockEvent> events = objectMapper.readValue(
+                    eventsJson,
+                    new TypeReference<List<RuleJobConfig.MockEvent>>() {
+                    });
+            if (events == null || events.isEmpty()) {
+                throw new RuntimeException("mock source 事件列表不能为空");
+            }
+            RuleJobConfig.MockSourceConfig config = new RuleJobConfig.MockSourceConfig();
+            config.setEnabled(true);
+            config.setEvents(events);
+            return config;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("解析 mock source 事件失败: " + e.getMessage(), e);
+        }
+    }
+
+    private String resolveFlinkAlgorithmPath(String algorithmPath) {
+        if (algorithmPath == null || algorithmPath.isBlank()) {
+            return algorithmPath;
+        }
+        java.nio.file.Path originalPath = java.nio.file.Paths.get(algorithmPath);
+        java.nio.file.Path fileName = originalPath.getFileName();
+        if (fileName == null) {
+            return algorithmPath;
+        }
+        java.nio.file.Path sharedPath = java.nio.file.Paths.get(sharedAlgorithmPath, fileName.toString());
+        if (java.nio.file.Files.exists(sharedPath)) {
+            return sharedPath.toString();
+        }
+        if (java.nio.file.Files.exists(originalPath)) {
+            log.warn("Flink 算法共享路径不存在，回退到原始上传路径: sharedPath={}, originalPath={}",
+                    sharedPath, originalPath);
+            return originalPath.toString();
+        }
+        return sharedPath.toString();
     }
 }

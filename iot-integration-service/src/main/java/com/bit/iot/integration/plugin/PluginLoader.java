@@ -1,14 +1,22 @@
 package com.bit.iot.integration.plugin;
 
+import com.bit.iot.integration.base.IPlugin;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.InputStream;
 import java.io.File;
-import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.jar.JarFile;
+
+import com.bit.iot.integration.model.dto.PluginConfigItemDTO;
 
 /**
  * 插件加载器
@@ -37,9 +45,12 @@ public class PluginLoader {
         log.info("开始加载插件：{}, 路径：{}", pluginId, pluginPath);
         
         // 检查文件是否存在
-        File pluginFile = new File(pluginPath);
+        File pluginFile = new File(pluginPath).getCanonicalFile();
         if (!pluginFile.exists()) {
             throw new IllegalArgumentException("插件文件不存在：" + pluginPath);
+        }
+        if (!pluginFile.getName().endsWith(".jar")) {
+            throw new IllegalArgumentException("插件文件必须是 .jar: " + pluginPath);
         }
         
         // 如果已经加载，先卸载
@@ -76,6 +87,7 @@ public class PluginLoader {
         wrapper.setClassLoader(classLoader);
         wrapper.setPluginPath(pluginPath);
         wrapper.setLastModifiedTime(new Date(pluginFile.lastModified()));
+        wrapper.setConfigResourcePath(pluginInstance.getConfigResourcePath());
         
         // 初始化插件
         wrapper.init();
@@ -163,6 +175,28 @@ public class PluginLoader {
     public Map<String, PluginWrapper> getAllPlugins() {
         return new ConcurrentHashMap<>(pluginCache);
     }
+
+    public List<PluginConfigItemDTO> readDefaultConfig(String pluginPath) throws Exception {
+        File pluginFile = new File(pluginPath).getCanonicalFile();
+        if (!pluginFile.exists()) {
+            throw new IllegalArgumentException("插件文件不存在：" + pluginPath);
+        }
+        if (!pluginFile.getName().endsWith(".jar")) {
+            throw new IllegalArgumentException("插件文件必须是 .jar: " + pluginPath);
+        }
+
+        String configResourcePath = resolveConfigResourcePath(pluginFile);
+
+        try (JarFile jarFile = new JarFile(pluginFile)) {
+            var entry = jarFile.getJarEntry(configResourcePath);
+            if (entry == null) {
+                throw new IllegalStateException("插件默认配置文件不存在：" + configResourcePath);
+            }
+            try (InputStream inputStream = jarFile.getInputStream(entry)) {
+                return parseYamlToConfigItems(inputStream);
+            }
+        }
+    }
     
     /**
      * 调用插件方法
@@ -223,5 +257,65 @@ public class PluginLoader {
         
         pluginCache.clear();
         log.info("所有插件已关闭");
+    }
+
+    private List<PluginConfigItemDTO> parseYamlToConfigItems(InputStream inputStream) {
+        Object loaded = new Yaml().load(inputStream);
+        List<PluginConfigItemDTO> result = new ArrayList<>();
+        if (loaded instanceof Map<?, ?> rawMap) {
+            Object configItems = rawMap.get("config");
+            if (configItems instanceof List<?> configList) {
+                for (Object item : configList) {
+                    if (!(item instanceof Map<?, ?> itemMap)) {
+                        continue;
+                    }
+                    PluginConfigItemDTO dto = new PluginConfigItemDTO();
+                    dto.setKey(stringValue(itemMap.get("key")));
+                    dto.setValue(stringValue(itemMap.get("value")));
+                    dto.setDescription(stringValue(itemMap.get("description")));
+                    if (dto.getKey() != null && !dto.getKey().isEmpty()) {
+                        result.add(dto);
+                    }
+                }
+                return result;
+            }
+
+            for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                if (entry.getKey() == null) {
+                    continue;
+                }
+                PluginConfigItemDTO dto = new PluginConfigItemDTO();
+                dto.setKey(String.valueOf(entry.getKey()));
+                if (entry.getValue() instanceof Map<?, ?> valueMap) {
+                    dto.setValue(stringValue(valueMap.get("value")));
+                    dto.setDescription(stringValue(valueMap.get("description")));
+                } else {
+                    dto.setValue(stringValue(entry.getValue()));
+                    dto.setDescription("");
+                }
+                result.add(dto);
+            }
+        }
+        return result;
+    }
+
+    private String resolveConfigResourcePath(File pluginFile) throws Exception {
+        URL pluginUrl = pluginFile.toURI().toURL();
+        try (PluginClassLoader classLoader = new PluginClassLoader(
+                "config-probe",
+                pluginFile.getName(),
+                new URL[]{pluginUrl},
+                Thread.currentThread().getContextClassLoader())) {
+            Class<?> pluginClass = classLoader.loadClass("com.bit.iot.plugin.PluginImpl");
+            if (!IPlugin.class.isAssignableFrom(pluginClass)) {
+                throw new IllegalArgumentException("插件类必须实现 IPlugin 接口");
+            }
+            IPlugin pluginInstance = (IPlugin) pluginClass.getDeclaredConstructor().newInstance();
+            return pluginInstance.getConfigResourcePath();
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? "" : String.valueOf(value);
     }
 }

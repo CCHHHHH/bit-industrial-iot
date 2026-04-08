@@ -4,9 +4,12 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.integration.model.entity.IntegrationDataMapping;
+import com.bit.iot.integration.model.request.IntegrationDataMappingRequest;
+import com.bit.iot.integration.model.vo.IntegrationDataMappingVO;
 import com.bit.iot.integration.service.IIntegrationDataMappingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,26 +33,32 @@ public class IntegrationDataMappingController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询数据映射列表")
-    public Result<List<IntegrationDataMapping>> getDataMappingList(
+    public Result<List<IntegrationDataMappingVO>> getDataMappingList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String integrationId) {
         Page<IntegrationDataMapping> page = new Page<>(current, size);
         Page<IntegrationDataMapping> result = dataMappingService.getDataMappingList(page, integrationId);
-        return success(result);
+        Page<IntegrationDataMappingVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增数据映射")
-    public Result<Void> addDataMapping(@RequestBody IntegrationDataMapping dataMapping) {
-        boolean success = dataMappingService.addDataMapping(dataMapping);
+    public Result<Void> addDataMapping(@RequestBody IntegrationDataMappingRequest dataMapping) {
+        IntegrationDataMapping entity = new IntegrationDataMapping();
+        BeanUtils.copyProperties(dataMapping, entity);
+        boolean success = dataMappingService.addDataMapping(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑数据映射")
-    public Result<Void> editDataMapping(@RequestBody IntegrationDataMapping dataMapping) {
-        boolean success = dataMappingService.editDataMapping(dataMapping);
+    public Result<Void> editDataMapping(@RequestBody IntegrationDataMappingRequest dataMapping) {
+        IntegrationDataMapping entity = new IntegrationDataMapping();
+        BeanUtils.copyProperties(dataMapping, entity);
+        boolean success = dataMappingService.editDataMapping(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -62,8 +71,14 @@ public class IntegrationDataMappingController extends BaseController {
 
     @GetMapping("/by-integration/{integrationId}")
     @Operation(summary = "根据集成配置 ID 查询数据映射列表")
-    public Result<List<IntegrationDataMapping>> getDataMappingsByIntegrationId(@PathVariable String integrationId) {
+    public Result<List<IntegrationDataMappingVO>> getDataMappingsByIntegrationId(@PathVariable String integrationId) {
         List<IntegrationDataMapping> dataMappings = dataMappingService.getDataMappingsByIntegrationId(integrationId);
-        return success(dataMappings);
+        return success(dataMappings.stream().map(this::toVO).toList());
+    }
+
+    private IntegrationDataMappingVO toVO(IntegrationDataMapping mapping) {
+        IntegrationDataMappingVO vo = new IntegrationDataMappingVO();
+        BeanUtils.copyProperties(mapping, vo);
+        return vo;
     }
 }

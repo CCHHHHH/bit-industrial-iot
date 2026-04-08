@@ -10,9 +10,13 @@ import com.bit.iot.rule.model.entity.RuleDataSource;
 import com.bit.iot.rule.model.entity.RuleParam;
 import com.bit.iot.rule.flink.FlinkJobManager;
 import com.bit.iot.rule.flink.FlinkJobStatus;
+import com.bit.iot.rule.model.request.RuleConfigRequest;
+import com.bit.iot.rule.model.request.RuleDataSourceRequest;
+import com.bit.iot.rule.model.request.RuleParamRequest;
 import com.bit.iot.rule.service.IRuleConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -55,10 +59,12 @@ public class RuleConfigController extends BaseController {
 
     @PostMapping
     @Operation(summary = "新增规则")
-    public Result<String> addRuleConfig(@RequestBody RuleConfig ruleConfig) {
+    public Result<String> addRuleConfig(@RequestBody RuleConfigRequest ruleConfig) {
+        RuleConfig entity = new RuleConfig();
+        BeanUtils.copyProperties(ruleConfig, entity);
         try {
-            boolean ok = ruleConfigService.addRuleConfig(ruleConfig);
-            return ok ? success(ruleConfig.getId()) : error("新增失败");
+            boolean ok = ruleConfigService.addRuleConfig(entity);
+            return ok ? success(entity.getId()) : error("新增失败");
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
@@ -66,8 +72,10 @@ public class RuleConfigController extends BaseController {
 
     @PutMapping
     @Operation(summary = "编辑规则")
-    public Result<Void> editRuleConfig(@RequestBody RuleConfig ruleConfig) {
-        return ruleConfigService.editRuleConfig(ruleConfig) ? success("修改成功") : error("修改失败");
+    public Result<Void> editRuleConfig(@RequestBody RuleConfigRequest ruleConfig) {
+        RuleConfig entity = new RuleConfig();
+        BeanUtils.copyProperties(ruleConfig, entity);
+        return ruleConfigService.editRuleConfig(entity) ? success("修改成功") : error("修改失败");
     }
 
     @DeleteMapping("/{id}")
@@ -87,15 +95,25 @@ public class RuleConfigController extends BaseController {
     @PostMapping("/{id}/data-sources")
     @Operation(summary = "保存数据源配置（设备 + 测点 + 时段，先删后存）")
     public Result<Void> saveDataSources(@PathVariable String id,
-                                        @RequestBody List<RuleDataSource> dataSources) {
-        return ruleConfigService.saveDataSources(id, dataSources) ? success("保存成功") : error("保存失败");
+                                        @RequestBody List<RuleDataSourceRequest> dataSources) {
+        List<RuleDataSource> entities = (dataSources == null ? java.util.List.<RuleDataSourceRequest>of() : dataSources).stream().map(item -> {
+            RuleDataSource entity = new RuleDataSource();
+            BeanUtils.copyProperties(item, entity);
+            return entity;
+        }).toList();
+        return ruleConfigService.saveDataSources(id, entities) ? success("保存成功") : error("保存失败");
     }
 
     @PostMapping("/{id}/params")
     @Operation(summary = "保存规则参数（先删后存）")
     public Result<Void> saveParams(@PathVariable String id,
-                                   @RequestBody List<RuleParam> params) {
-        return ruleConfigService.saveParams(id, params) ? success("保存成功") : error("保存失败");
+                                   @RequestBody List<RuleParamRequest> params) {
+        List<RuleParam> entities = (params == null ? java.util.List.<RuleParamRequest>of() : params).stream().map(item -> {
+            RuleParam entity = new RuleParam();
+            BeanUtils.copyProperties(item, entity);
+            return entity;
+        }).toList();
+        return ruleConfigService.saveParams(id, entities) ? success("保存成功") : error("保存失败");
     }
 
     // -----------------------------------------------------------------------

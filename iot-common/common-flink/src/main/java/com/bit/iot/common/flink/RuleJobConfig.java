@@ -58,6 +58,7 @@ public class RuleJobConfig implements Serializable {
     private TDEngineConfig tdengineConfig;
     private MysqlConfig mysqlConfig;
     private MqttConfig mqttConfig;
+    private MockSourceConfig mockSourceConfig;
 
     // ================================================================
     // 内部配置结构
@@ -77,12 +78,15 @@ public class RuleJobConfig implements Serializable {
     @Data
     public static class TDEngineConfig implements Serializable {
         private static final long serialVersionUID = 1L;
+        private boolean enabled = true;
         /** jdbc:TAOS-RS://host:6041/db */
         private String jdbcUrl;
         private String username;
         private String password;
         /** 超级表名 */
         private String superTable;
+        /** 算法结果超级表 */
+        private String resultStable;
     }
 
     @Data
@@ -100,5 +104,22 @@ public class RuleJobConfig implements Serializable {
         private String topicPattern;
         private String username;
         private String password;
+    }
+
+    @Data
+    public static class MockSourceConfig implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private boolean enabled;
+        private List<MockEvent> events;
+    }
+
+    @Data
+    public static class MockEvent implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String deviceId;
+        private String pointCode;
+        private long timestamp;
+        private double value;
+        private int quality = 0;
     }
 }

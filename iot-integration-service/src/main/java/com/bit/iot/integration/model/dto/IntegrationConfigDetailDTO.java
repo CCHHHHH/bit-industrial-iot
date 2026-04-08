@@ -1,7 +1,7 @@
 package com.bit.iot.integration.model.dto;
 
-import com.bit.iot.integration.model.entity.IntegrationConfig;
-import com.bit.iot.integration.model.entity.IntegrationConfigParam;
+import com.bit.iot.integration.model.vo.IntegrationConfigParamVO;
+import com.bit.iot.integration.model.vo.IntegrationConfigVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,11 +23,11 @@ public class IntegrationConfigDetailDTO {
      * 集成配置信息
      */
     @Schema(description = "集成配置信息")
-    private IntegrationConfig config;
+    private IntegrationConfigVO config;
 
     /**
      * 配置参数列表
      */
     @Schema(description = "配置参数列表")
-    private List<IntegrationConfigParam> configParams;
+    private List<IntegrationConfigParamVO> configParams;
 }

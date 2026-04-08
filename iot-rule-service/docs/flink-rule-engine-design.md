@@ -969,7 +969,7 @@ TDEngine Source 从 lastTimestamp 继续读取
     <packaging>jar</packaging>
 
     <properties>
-        <flink.version>1.18.1</flink.version>
+        <flink.version>2.2.0</flink.version>
     </properties>
 
     <dependencies>

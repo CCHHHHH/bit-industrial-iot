@@ -48,6 +48,20 @@ spring:
           filters:
             - StripPrefix=2
             - AddRequestHeader=X-Forwarded-Proto, http
+        - id: iot-rule-service
+          uri: lb://iot-rule-service
+          predicates:
+            - Path=/api/rule/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=X-Forwarded-Proto, http
+        - id: iot-device-simulator-service
+          uri: lb://iot-device-simulator-service
+          predicates:
+            - Path=/api/simulator/**
+          filters:
+            - StripPrefix=2
+            - AddRequestHeader=X-Forwarded-Proto, http
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848

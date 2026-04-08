@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS `rule_param` (
 CREATE TABLE IF NOT EXISTS `rule_execution_log` (
     `id`          VARCHAR(32) NOT NULL COMMENT '主键',
     `rule_id`     VARCHAR(32) NOT NULL COMMENT '所属规则 ID',
+    `window_key`  VARCHAR(100)         COMMENT '窗口键（deviceId 或 deviceId#pointCode）',
     `start_time`  DATETIME             COMMENT '执行开始时间',
     `end_time`    DATETIME             COMMENT '执行结束时间',
     `exec_status` TINYINT     NOT NULL DEFAULT 0 COMMENT '执行状态：0-执行中，1-成功，2-失败',
@@ -92,7 +93,8 @@ CREATE TABLE IF NOT EXISTS `rule_execution_log` (
     `duration_ms` BIGINT               COMMENT '执行耗时（毫秒）',
     PRIMARY KEY (`id`),
     KEY `idx_rule_id` (`rule_id`),
-    KEY `idx_start_time` (`start_time`)
+    KEY `idx_start_time` (`start_time`),
+    UNIQUE KEY `uk_rule_window` (`rule_id`, `window_key`, `start_time`, `end_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='规则执行日志表';
 
 -- ------------------------------------------------------------
@@ -123,6 +125,10 @@ INSERT IGNORE INTO rule_engine_config VALUES
 --     ADD COLUMN `key_strategy`   VARCHAR(20)  DEFAULT 'device_point' COMMENT '分组策略' AFTER window_unit,
 --     ADD COLUMN `window_slide`   BIGINT       COMMENT '滑动窗口步长' AFTER window_size,
 --     ADD COLUMN `parallelism`    INT          DEFAULT 2 COMMENT '并行度' AFTER key_strategy;
+--
+-- ALTER TABLE rule_execution_log
+--     ADD COLUMN `window_key` VARCHAR(100) COMMENT '窗口键（deviceId 或 deviceId#pointCode）' AFTER `rule_id`,
+--     ADD UNIQUE KEY `uk_rule_window` (`rule_id`, `window_key`, `start_time`, `end_time`);
 
 
 -- ============================================================

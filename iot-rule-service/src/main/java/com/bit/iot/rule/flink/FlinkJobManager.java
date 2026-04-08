@@ -14,8 +14,10 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -48,6 +50,7 @@ public class FlinkJobManager {
 
     /** 上传后的 Flink JAR ID（upload 一次即可复用） */
     private volatile String uploadedJarId;
+    private volatile long uploadedJarLastModified;
 
     // ================================================================
     // 提交 Job
@@ -59,7 +62,28 @@ public class FlinkJobManager {
      * @param config 规则 Job 配置
      * @return Flink Job ID
      */
-    public String submitJob(RuleJobConfig config) throws Exception {
+    public String submitJob(RuleJobConfig config, boolean registerMapping) throws Exception {
+        String existingJobId = ruleJobMapping.get(config.getRuleId());
+        if (registerMapping && existingJobId != null) {
+            FlinkJobStatus status = getJobStatusByJobId(existingJobId);
+            if (status == FlinkJobStatus.RUNNING
+                    || status == FlinkJobStatus.CREATED
+                    || status == FlinkJobStatus.RECONCILING) {
+                LOG.info("复用已存在的 Flink Job 映射: ruleId={}, jobId={}, status={}",
+                        config.getRuleId(), existingJobId, status);
+                return existingJobId;
+            }
+            if (status == FlinkJobStatus.RESTARTING) {
+                LOG.warn("检测到规则 {} 关联的 Flink Job {} 处于 RESTARTING，尝试先取消后重新提交", config.getRuleId(), existingJobId);
+                try {
+                    cancelJobByJobId(existingJobId);
+                } catch (Exception e) {
+                    LOG.warn("取消 RESTARTING Flink Job 失败: jobId={}, error={}", existingJobId, e.getMessage());
+                }
+            }
+            ruleJobMapping.remove(config.getRuleId());
+        }
+
         // 1. 确保 JAR 已上传
         ensureJarUploaded();
 
@@ -73,6 +97,10 @@ public class FlinkJobManager {
 
         Map<String, Object> body = new HashMap<>();
         body.put("entryClass", "com.bit.iot.flink.job.RuleJobEntrypoint");
+        List<String> programArgsList = new ArrayList<>();
+        programArgsList.add("--ruleConfig");
+        programArgsList.add(base64Config);
+        body.put("programArgsList", programArgsList);
         body.put("programArgs", "--ruleConfig " + base64Config);
         body.put("parallelism", config.getParallelism());
 
@@ -87,9 +115,11 @@ public class FlinkJobManager {
         }
 
         String jobId = (String) resp.getBody().get("jobid");
-        ruleJobMapping.put(config.getRuleId(), jobId);
+        if (registerMapping) {
+            ruleJobMapping.put(config.getRuleId(), jobId);
+        }
 
-        LOG.info("规则 {} 已提交 Flink Job: {}", config.getRuleId(), jobId);
+        LOG.info("规则 {} 已提交 Flink Job: {}, registerMapping={}", config.getRuleId(), jobId, registerMapping);
         return jobId;
     }
 
@@ -101,40 +131,29 @@ public class FlinkJobManager {
      * 取消规则对应的 Flink Job
      *
      * @param ruleId        规则 ID
-     * @param withSavepoint 是否触发 Savepoint 后取消（用于升级场景）
+     * @param withSavepoint 是否在取消前触发 Savepoint（用于升级场景，依赖 HDFS）
      */
     public void cancelJob(String ruleId, boolean withSavepoint) throws Exception {
         String jobId = ruleJobMapping.get(ruleId);
         if (jobId == null) {
-            LOG.warn("未找到规则 {} 对应的 Flink Job，可能已取消", ruleId);
+            LOG.warn("未找到规则 {} 对应的 Flink Job，可能已取消或服务重启后映射丢失", ruleId);
             return;
         }
 
-        if (withSavepoint) {
-            String url = flinkRestUrl + "/jobs/" + jobId + "/savepoints";
-            Map<String, Object> body = new HashMap<>();
-            body.put("cancel-job", true);
-            body.put("target-directory", "hdfs:///flink/savepoints");
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        if (withSavepoint) {
+            // POST /jobs/{jobId}/stop —— 触发 Savepoint 并停止（Flink 1.13+ 推荐）
+            String url = flinkRestUrl + "/jobs/" + jobId + "/stop";
+            Map<String, Object> body = new HashMap<>();
+            body.put("drain", false);
+            body.put("targetDirectory", "hdfs:///flink/savepoints");
             restTemplate.postForEntity(url, new HttpEntity<>(body, headers), Map.class);
         } else {
-            String url = flinkRestUrl + "/jobs/" + jobId + "/yarn-cancel";
-            try {
-                restTemplate.getForObject(url, Map.class);
-            } catch (Exception e) {
-                // 尝试通过 PATCH 取消
-                try {
-                    url = flinkRestUrl + "/jobs/" + jobId;
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.setContentType(MediaType.APPLICATION_JSON);
-                    Map<String, String> body = Map.of("state", "canceled");
-                    restTemplate.patchForObject(url, new HttpEntity<>(body, headers), Map.class);
-                } catch (Exception ex) {
-                    LOG.warn("取消 Flink Job 失败，尝试直接 cancel: {}", ex.getMessage());
-                }
-            }
+            // PATCH /jobs/{jobId}?mode=cancel —— 标准 Flink REST API 取消接口
+            String url = flinkRestUrl + "/jobs/" + jobId + "?mode=cancel";
+            restTemplate.patchForObject(url, new HttpEntity<>(null, headers), String.class);
         }
 
         ruleJobMapping.remove(ruleId);
@@ -151,7 +170,10 @@ public class FlinkJobManager {
     public FlinkJobStatus getJobStatus(String ruleId) {
         String jobId = ruleJobMapping.get(ruleId);
         if (jobId == null) return FlinkJobStatus.NOT_FOUND;
+        return getJobStatusByJobId(jobId);
+    }
 
+    public FlinkJobStatus getJobStatusByJobId(String jobId) {
         try {
             String url = flinkRestUrl + "/jobs/" + jobId;
             @SuppressWarnings("unchecked")
@@ -161,7 +183,7 @@ public class FlinkJobManager {
                 return FlinkJobStatus.safeValueOf(state);
             }
         } catch (Exception e) {
-            LOG.warn("查询 Flink Job 状态失败: ruleId={}, error={}", ruleId, e.getMessage());
+            LOG.warn("查询 Flink Job 状态失败: jobId={}, error={}", jobId, e.getMessage());
         }
         return FlinkJobStatus.UNKNOWN;
     }
@@ -182,13 +204,27 @@ public class FlinkJobManager {
         }
     }
 
+    public void removeJobMapping(String ruleId) {
+        if (ruleId != null) {
+            ruleJobMapping.remove(ruleId);
+        }
+    }
+
+    private void cancelJobByJobId(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            return;
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        String url = flinkRestUrl + "/jobs/" + jobId + "?mode=cancel";
+        restTemplate.patchForObject(url, new HttpEntity<>(null, headers), String.class);
+    }
+
     // ================================================================
     // JAR 上传
     // ================================================================
 
     private synchronized void ensureJarUploaded() throws Exception {
-        if (uploadedJarId != null) return;
-
         if (flinkJobJarPath == null || flinkJobJarPath.isEmpty()) {
             throw new RuntimeException("未配置 flink.job.jar-path，无法上传 Flink Job JAR");
         }
@@ -196,6 +232,10 @@ public class FlinkJobManager {
         File jarFile = new File(flinkJobJarPath);
         if (!jarFile.exists()) {
             throw new RuntimeException("Flink Job JAR 不存在: " + flinkJobJarPath);
+        }
+        long lastModified = jarFile.lastModified();
+        if (uploadedJarId != null && uploadedJarLastModified == lastModified) {
+            return;
         }
 
         String url = flinkRestUrl + "/jars/upload";
@@ -217,6 +257,7 @@ public class FlinkJobManager {
         String filename = (String) resp.getBody().get("filename");
         if (filename != null) {
             uploadedJarId = filename.substring(filename.lastIndexOf('/') + 1);
+            uploadedJarLastModified = lastModified;
         }
 
         LOG.info("Flink Job JAR 上传成功: {}", uploadedJarId);

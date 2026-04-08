@@ -4,9 +4,12 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.device.model.entity.Device;
+import com.bit.iot.device.model.request.DeviceRequest;
+import com.bit.iot.device.model.vo.DeviceVO;
 import com.bit.iot.device.service.IDeviceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,27 +33,33 @@ public class DeviceController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询设备列表")
-    public Result<List<Device>> getDeviceList(
+    public Result<List<DeviceVO>> getDeviceList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String deviceName,
             String catalogueId) {
         Page<Device> page = new Page<>(current, size);
         Page<Device> result = deviceService.getDeviceList(page, deviceName, catalogueId);
-        return success(result);
+        Page<DeviceVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增设备")
-    public Result<Void> addDevice(@RequestBody Device device) {
-        boolean success = deviceService.addDevice(device);
+    public Result<Void> addDevice(@RequestBody DeviceRequest device) {
+        Device entity = new Device();
+        BeanUtils.copyProperties(device, entity);
+        boolean success = deviceService.addDevice(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑设备")
-    public Result<Void> editDevice(@RequestBody Device device) {
-        boolean success = deviceService.editDevice(device);
+    public Result<Void> editDevice(@RequestBody DeviceRequest device) {
+        Device entity = new Device();
+        BeanUtils.copyProperties(device, entity);
+        boolean success = deviceService.editDevice(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -63,8 +72,14 @@ public class DeviceController extends BaseController {
 
     @GetMapping("/by-catalogue/{catalogueId}")
     @Operation(summary = "根据设备目录 ID 查询设备列表")
-    public Result<List<Device>> getDevicesByCatalogueId(@PathVariable String catalogueId) {
+    public Result<List<DeviceVO>> getDevicesByCatalogueId(@PathVariable String catalogueId) {
         List<Device> devices = deviceService.getDevicesByCatalogueId(catalogueId);
-        return success(devices);
+        return success(devices.stream().map(this::toVO).toList());
+    }
+
+    private DeviceVO toVO(Device device) {
+        DeviceVO vo = new DeviceVO();
+        BeanUtils.copyProperties(device, vo);
+        return vo;
     }
 }

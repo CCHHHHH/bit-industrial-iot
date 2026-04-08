@@ -1,5 +1,6 @@
 package com.bit.iot.integration.plugin;
 
+import com.bit.iot.integration.base.IPlugin;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -65,6 +66,11 @@ public class PluginWrapper {
      * 最后修改时间
      */
     private Date lastModifiedTime;
+
+    /**
+     * 插件默认配置资源路径
+     */
+    private String configResourcePath;
     
     public PluginWrapper() {
         this.loadTime = new Date();

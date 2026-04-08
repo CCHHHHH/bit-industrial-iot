@@ -2,14 +2,12 @@ package com.bit.iot.rule.engine;
 
 import com.bit.iot.common.flink.AlgorithmResult;
 import com.bit.iot.common.flink.DataPoint;
-import com.bit.iot.common.flink.IRuleAlgorithm;
+import com.bit.iot.common.flink.algorithm.JarAlgorithmLoader;
+import com.bit.iot.common.flink.algorithm.PythonAlgorithmExecutor;
 import com.bit.iot.rule.model.entity.RuleAlgorithm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 算法加载器
  * <p>
- * 负责动态加载 JAR 包算法，并通过 PythonAlgorithmExecutor 执行 Python 脚本算法。
- * 每个 JAR 算法使用独立的 ClassLoader 进行类隔离，支持热替换。
+ * 负责动态加载 JAR 包算法，以及通过 {@link PythonAlgorithmExecutor} 执行 Python 脚本算法。
+ * JAR 算法按 algorithmId 缓存 {@link JarAlgorithmLoader}，支持热替换（{@link #unload}）。
  * </p>
  *
  * @author chenhao
@@ -28,11 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class AlgorithmLoader {
 
-    /** 已加载的 JAR 算法缓存：algorithmId -> IRuleAlgorithm 实例 */
-    private final Map<String, IRuleAlgorithm> algorithmCache = new ConcurrentHashMap<>();
-
-    /** 对应的 ClassLoader 缓存（用于卸载时关闭） */
-    private final Map<String, URLClassLoader> classLoaderCache = new ConcurrentHashMap<>();
+    /** JAR 算法缓存：algorithmId -> JarAlgorithmLoader（含 ClassLoader 及算法实例） */
+    private final Map<String, JarAlgorithmLoader> loaderCache = new ConcurrentHashMap<>();
 
     /**
      * 加载并执行算法
@@ -56,57 +51,22 @@ public class AlgorithmLoader {
     }
 
     /**
-     * 执行 JAR 算法
+     * 执行 JAR 算法，按 algorithmId 缓存 {@link JarAlgorithmLoader}
      */
     private AlgorithmResult executeJar(RuleAlgorithm algorithm,
-                                        List<DataPoint> dataPoints,
-                                        Map<String, String> params) throws Exception {
+                                       List<DataPoint> dataPoints,
+                                       Map<String, String> params) throws Exception {
         String algorithmId = algorithm.getId();
-        IRuleAlgorithm instance = algorithmCache.get(algorithmId);
+        JarAlgorithmLoader loader = loaderCache.get(algorithmId);
 
-        if (instance == null) {
-            instance = loadJarAlgorithm(algorithm);
+        if (loader == null) {
+            log.info("加载 JAR 算法：{} -> {}", algorithm.getAlgorithmName(), algorithm.getAlgorithmPath());
+            loader = new JarAlgorithmLoader();
+            loader.load(algorithm.getAlgorithmPath(), algorithm.getAlgorithmClass());
+            loaderCache.put(algorithmId, loader);
         }
 
-        return instance.execute(dataPoints, params);
-    }
-
-    /**
-     * 动态加载 JAR 包中的算法类
-     */
-    private IRuleAlgorithm loadJarAlgorithm(RuleAlgorithm algorithm) throws Exception {
-        String algorithmId = algorithm.getId();
-        log.info("加载 JAR 算法：{} -> {}", algorithm.getAlgorithmName(), algorithm.getAlgorithmPath());
-
-        File jarFile = new File(algorithm.getAlgorithmPath());
-        if (!jarFile.exists()) {
-            throw new IllegalStateException("算法 JAR 文件不存在：" + algorithm.getAlgorithmPath());
-        }
-
-        // 关闭旧的 ClassLoader（如果存在）
-        URLClassLoader old = classLoaderCache.get(algorithmId);
-        if (old != null) {
-            try { old.close(); } catch (Exception ignored) {}
-        }
-
-        // 创建独立 ClassLoader，父 ClassLoader 为当前线程上下文
-        URLClassLoader classLoader = new URLClassLoader(
-                new URL[]{jarFile.toURI().toURL()},
-                Thread.currentThread().getContextClassLoader()
-        );
-
-        Class<?> clazz = classLoader.loadClass(algorithm.getAlgorithmClass());
-        if (!IRuleAlgorithm.class.isAssignableFrom(clazz)) {
-            classLoader.close();
-            throw new IllegalArgumentException("算法类必须实现 IRuleAlgorithm 接口：" + algorithm.getAlgorithmClass());
-        }
-
-        IRuleAlgorithm instance = (IRuleAlgorithm) clazz.getDeclaredConstructor().newInstance();
-        algorithmCache.put(algorithmId, instance);
-        classLoaderCache.put(algorithmId, classLoader);
-
-        log.info("JAR 算法加载成功：{}", algorithm.getAlgorithmName());
-        return instance;
+        return loader.execute(dataPoints, params);
     }
 
     /**
@@ -115,10 +75,9 @@ public class AlgorithmLoader {
      * @param algorithmId 算法 ID
      */
     public void unload(String algorithmId) {
-        algorithmCache.remove(algorithmId);
-        URLClassLoader loader = classLoaderCache.remove(algorithmId);
+        JarAlgorithmLoader loader = loaderCache.remove(algorithmId);
         if (loader != null) {
-            try { loader.close(); } catch (Exception ignored) {}
+            loader.close();
         }
         log.info("算法已卸载：{}", algorithmId);
     }
@@ -127,11 +86,8 @@ public class AlgorithmLoader {
      * 卸载全部算法
      */
     public void unloadAll() {
-        algorithmCache.clear();
-        classLoaderCache.forEach((id, loader) -> {
-            try { loader.close(); } catch (Exception ignored) {}
-        });
-        classLoaderCache.clear();
+        loaderCache.forEach((id, loader) -> loader.close());
+        loaderCache.clear();
         log.info("所有算法已卸载");
     }
 }

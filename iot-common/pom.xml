@@ -14,10 +14,8 @@
     <modules>
         <module>common-core</module>
         <module>common-security</module>
-        <module>common-feign</module>
-        <module>common-mq</module>
-        <module>common-tdengine</module>
         <module>common-flink</module>
+        <module>common-flink-connector</module>
     </modules>
 
     <properties>

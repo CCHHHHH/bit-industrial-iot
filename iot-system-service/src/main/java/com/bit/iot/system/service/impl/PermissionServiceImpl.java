@@ -44,8 +44,6 @@ public class PermissionServiceImpl extends ServiceImpl<PermissionMapper, Permiss
 
     @Override
     public boolean addPermission(Permission permission) {
-        Date now = new Date();
-        
         // 检查权限代码是否已存在
         QueryWrapper<Permission> checkWrapper = new QueryWrapper<>();
         checkWrapper.eq("permission_code", permission.getPermissionCode());
@@ -75,9 +73,7 @@ public class PermissionServiceImpl extends ServiceImpl<PermissionMapper, Permiss
                     .set("permission_name", permission.getPermissionName())
                     .set("permission_code", permission.getPermissionCode())
                     .set("permission_desc", permission.getPermissionDesc())
-                    .set("permission_type", permission.getPermissionType())
-                    .set("update_time", now);
-        
+                    .set("permission_type", permission.getPermissionType());
         return this.update(updateWrapper);
     }
 

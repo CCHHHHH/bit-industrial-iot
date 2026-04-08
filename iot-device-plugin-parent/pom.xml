@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.bit</groupId>
+        <artifactId>bit-industrial-iot</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>iot-device-plugin-parent</artifactId>
+    <packaging>pom</packaging>
+    <name>iot-device-plugin-parent</name>
+
+    <modules>
+        <module>iot-device-plugin-common</module>
+        <module>iot-device-plugin-demo</module>
+    </modules>
+</project>

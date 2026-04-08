@@ -1,5 +1,6 @@
 package com.bit.iot.integration.service.impl;
 
+import bit.iot.common.controller.BusinessException;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -29,8 +30,13 @@ import java.util.UUID;
 @Service
 public class IntegrationPluginServiceImpl extends ServiceImpl<IntegrationPluginMapper, IntegrationPlugin> implements IIntegrationPluginService {
 
+    private static final long DEFAULT_MAX_PLUGIN_SIZE = 50L * 1024L * 1024L;
+
     @Value("${plugin.upload.path:./plugins}")
     private String pluginUploadPath;
+
+    @Value("${plugin.upload.max-file-size-bytes:52428800}")
+    private long maxPluginSizeBytes;
 
     /**
      * 默认插件版本
@@ -81,13 +87,13 @@ public class IntegrationPluginServiceImpl extends ServiceImpl<IntegrationPluginM
     @Override
     public IntegrationPlugin uploadPlugin(MultipartFile file, String pluginName, String description, String pluginType) throws Exception {
         if (file.isEmpty()) {
-            throw new IllegalArgumentException("上传文件不能为空");
+            throw new BusinessException("上传文件不能为空");
         }
 
         // 获取原始文件名
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isEmpty()) {
-            throw new IllegalArgumentException("文件名不能为空");
+            throw new BusinessException("文件名不能为空");
         }
 
         // 如果未提供插件名称，从文件名中获取（去除扩展名）
@@ -98,7 +104,13 @@ public class IntegrationPluginServiceImpl extends ServiceImpl<IntegrationPluginM
 
         // 获取文件扩展名
         int dotIndex = originalFilename.lastIndexOf('.');
-        String fileExtension = dotIndex > 0 ? originalFilename.substring(dotIndex) : "";
+        String fileExtension = dotIndex > 0 ? originalFilename.substring(dotIndex).toLowerCase() : "";
+        if (!".jar".equals(fileExtension)) {
+            throw new BusinessException("插件仅支持 .jar 文件");
+        }
+        if (file.getSize() > (maxPluginSizeBytes > 0 ? maxPluginSizeBytes : DEFAULT_MAX_PLUGIN_SIZE)) {
+            throw new BusinessException("插件文件超过大小限制");
+        }
         
         // 如果未提供插件类型，使用文件扩展名
         if (pluginType == null || pluginType.trim().isEmpty()) {
@@ -122,7 +134,10 @@ public class IntegrationPluginServiceImpl extends ServiceImpl<IntegrationPluginM
         }
 
         // 保存文件
-        Path filePath = uploadPath.resolve(uniqueFilename);
+        Path filePath = uploadPath.resolve(uniqueFilename).toAbsolutePath().normalize();
+        if (!filePath.startsWith(uploadPath.toAbsolutePath().normalize())) {
+            throw new BusinessException("非法插件文件路径");
+        }
         File destFile = filePath.toFile();
         file.transferTo(destFile);
 

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.bit.iot.integration.model.entity.IntegrationConfigParam;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -50,5 +51,28 @@ public interface IIntegrationConfigParamService extends IService<IntegrationConf
      * @return 是否成功
      */
     boolean saveConfigParams(String integrationId, List<IntegrationConfigParam> paramList);
+
+    /**
+     * 以 key/value 形式读取实例参数
+     * @param integrationId 集成实例 ID
+     * @return 参数 map
+     */
+    Map<String, String> getConfigParamMap(String integrationId);
+
+    /**
+     * 以 key/value 形式覆盖保存实例参数
+     * @param integrationId 集成实例 ID
+     * @param configMap 参数 map
+     * @return 是否成功
+     */
+    boolean saveConfigParamMap(String integrationId, Map<String, String> configMap);
+
+    /**
+     * 覆盖保存带描述的实例参数
+     * @param integrationId 集成实例 ID
+     * @param paramList 参数列表
+     * @return 是否成功
+     */
+    boolean saveConfigParamItems(String integrationId, List<IntegrationConfigParam> paramList);
 
 }

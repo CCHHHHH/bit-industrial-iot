@@ -5,9 +5,11 @@ import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.system.model.dto.RoleDto;
 import com.bit.iot.system.model.entity.Role;
+import com.bit.iot.system.model.request.RoleRequest;
 import com.bit.iot.system.service.IRoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -50,18 +52,22 @@ public class RoleController extends BaseController {
     @PostMapping
     @Operation(summary = "新增角色")
     public Result<Void> addRole(
-            @RequestBody Role role,
+            @RequestBody RoleRequest role,
             @RequestParam(required = false) List<String> permissionIds) {
-        boolean success = roleService.addRole(role, permissionIds);
+        Role entity = new Role();
+        BeanUtils.copyProperties(role, entity);
+        boolean success = roleService.addRole(entity, permissionIds);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "修改角色")
     public Result<Void> editRole(
-            @RequestBody Role role,
+            @RequestBody RoleRequest role,
             @RequestParam(required = false) List<String> permissionIds) {
-        boolean success = roleService.editRole(role, permissionIds);
+        Role entity = new Role();
+        BeanUtils.copyProperties(role, entity);
+        boolean success = roleService.editRole(entity, permissionIds);
         return success ? success("修改成功") : error("修改失败");
     }
 

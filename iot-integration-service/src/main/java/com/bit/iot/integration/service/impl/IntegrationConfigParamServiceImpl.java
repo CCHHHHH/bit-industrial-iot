@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * <p>
@@ -53,10 +56,43 @@ public class IntegrationConfigParamServiceImpl extends ServiceImpl<IntegrationCo
 
         // 批量插入新参数
         if (paramList != null && !paramList.isEmpty()) {
-            paramList.forEach(p -> p.setIntegrationId(integrationId));
+            paramList.forEach(p -> {
+                p.setIntegrationId(integrationId);
+                if (p.getId() == null || p.getId().isEmpty()) {
+                    p.setId(UUID.randomUUID().toString());
+                }
+            });
             return this.saveBatch(paramList);
         }
         return true;
+    }
+
+    @Override
+    public Map<String, String> getConfigParamMap(String integrationId) {
+        Map<String, String> result = new LinkedHashMap<>();
+        getConfigParamsByIntegrationId(integrationId)
+                .forEach(item -> result.put(item.getParamKey(), item.getParamValue()));
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean saveConfigParamMap(String integrationId, Map<String, String> configMap) {
+        List<IntegrationConfigParam> paramList = (configMap == null ? Map.<String, String>of() : configMap).entrySet()
+                .stream()
+                .map(entry -> new IntegrationConfigParam()
+                        .setId(UUID.randomUUID().toString())
+                        .setIntegrationId(integrationId)
+                        .setParamKey(entry.getKey())
+                        .setParamValue(entry.getValue()))
+                .toList();
+        return saveConfigParams(integrationId, paramList);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean saveConfigParamItems(String integrationId, List<IntegrationConfigParam> paramList) {
+        return saveConfigParams(integrationId, paramList);
     }
 
 }

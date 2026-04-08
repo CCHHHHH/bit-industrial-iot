@@ -2,6 +2,10 @@ package com.bit.iot.rule.engine;
 
 import com.bit.iot.common.flink.AlgorithmResult;
 import com.bit.iot.common.flink.DataPoint;
+import com.bit.iot.common.flink.alarm.AlarmSupport;
+import com.bit.iot.rule.client.DataServiceClient;
+import com.bit.iot.rule.service.IAlarmService;
+import com.bit.iot.rule.service.support.AlarmUpsertCommand;
 import com.bit.iot.rule.model.entity.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +39,12 @@ public class RuleEngineManager {
 
     @Autowired
     private AlgorithmLoader algorithmLoader;
+
+    @Autowired
+    private DataServiceClient dataServiceClient;
+
+    @Autowired
+    private IAlarmService alarmService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -158,25 +168,52 @@ public class RuleEngineManager {
         logConsumer.onCreate(executionLog);
 
         try {
-            // 2. 读取时序数据
-            // TODO: 接入真实 TDEngine 数据源，当前返回空列表以供框架运行
+            // 2. 通过 iot-data-service 读取时序数据
             List<DataPoint> dataPoints = readDataPoints(dataSources, ruleConfig);
 
-            // 3. 执行算法
-            AlgorithmResult result = algorithmLoader.execute(algorithm, dataPoints, paramMap);
+            // 3. 按 key 执行算法，尽量贴近 Flink 行为
+            Map<String, List<DataPoint>> groupedDataPoints = groupDataPoints(ruleConfig, dataSources, dataPoints);
+            Map<String, Object> aggregatedResult = new LinkedHashMap<>();
+            List<String> errorMessages = new ArrayList<>();
+            String singleWindowKey = groupedDataPoints.size() == 1
+                    ? groupedDataPoints.keySet().iterator().next()
+                    : null;
+
+            for (Map.Entry<String, List<DataPoint>> entry : groupedDataPoints.entrySet()) {
+                String windowKey = entry.getKey();
+                try {
+                    AlgorithmResult result = algorithmLoader.execute(algorithm, entry.getValue(), paramMap);
+                    if (result.isSuccess()) {
+                        if (groupedDataPoints.size() == 1 && result.getData() != null) {
+                            aggregatedResult.putAll(result.getData());
+                        } else {
+                            aggregatedResult.put(windowKey, result.getData());
+                        }
+                        createAlarmIfNeeded(ruleConfig, dataSources, windowKey, result.getData());
+                    } else {
+                        errorMessages.add(windowKey + ": " + result.getErrorMsg());
+                    }
+                } catch (Exception groupException) {
+                    errorMessages.add(windowKey + ": " + groupException.getMessage());
+                }
+            }
 
             long durationMs = System.currentTimeMillis() - startMs;
             executionLog.setEndTime(new Date());
             executionLog.setDurationMs(durationMs);
+            executionLog.setWindowKey(singleWindowKey);
 
-            if (result.isSuccess()) {
+            if (errorMessages.isEmpty()) {
                 executionLog.setExecStatus(1); // 成功
-                executionLog.setResultData(objectMapper.writeValueAsString(result.getData()));
+                executionLog.setResultData(objectMapper.writeValueAsString(aggregatedResult));
                 log.info("规则执行成功：{}，耗时 {}ms", ruleConfig.getRuleName(), durationMs);
             } else {
                 executionLog.setExecStatus(2); // 失败
-                executionLog.setErrorMsg(result.getErrorMsg());
-                log.warn("规则执行失败：{}，原因：{}", ruleConfig.getRuleName(), result.getErrorMsg());
+                if (!aggregatedResult.isEmpty()) {
+                    executionLog.setResultData(objectMapper.writeValueAsString(aggregatedResult));
+                }
+                executionLog.setErrorMsg(String.join("; ", errorMessages));
+                log.warn("规则执行失败：{}，原因：{}", ruleConfig.getRuleName(), executionLog.getErrorMsg());
             }
 
         } catch (Exception e) {
@@ -200,11 +237,149 @@ public class RuleEngineManager {
      * </p>
      */
     private List<DataPoint> readDataPoints(List<RuleDataSource> dataSources, RuleConfig ruleConfig) {
-        // TODO: 接入 TDEngine 实现
-        // SELECT ts, device_id, point_code, value FROM bit_iot.device_data
-        // WHERE device_id IN (...) AND point_code IN (...) AND ts BETWEEN ... AND ...
-        log.debug("TDEngine 数据读取预留，数据源数量：{}", dataSources == null ? 0 : dataSources.size());
-        return Collections.emptyList();
+        long windowMs = resolveWindowMs(ruleConfig);
+        long effectiveWindowMs = windowMs > 0 ? windowMs : 60_000L;
+        long queryEndTime = System.currentTimeMillis();
+        long queryStartTime = queryEndTime - effectiveWindowMs;
+        log.debug("通过 iot-data-service 读取时序数据: ruleId={}, start={}, end={}, dataSources={}",
+                ruleConfig.getId(), queryStartTime, queryEndTime, dataSources == null ? 0 : dataSources.size());
+        return dataServiceClient.queryRuleWindow(
+                dataSources == null ? Collections.emptyList() : dataSources,
+                queryStartTime,
+                queryEndTime,
+                2000
+        );
+    }
+
+    private Map<String, List<DataPoint>> groupDataPoints(RuleConfig ruleConfig,
+                                                         List<RuleDataSource> dataSources,
+                                                         List<DataPoint> dataPoints) {
+        Map<String, List<DataPoint>> grouped = new LinkedHashMap<>();
+        String keyStrategy = ruleConfig.getKeyStrategy();
+        for (DataPoint dataPoint : dataPoints) {
+            String key = resolveGroupKey(dataPoint, keyStrategy);
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(dataPoint);
+        }
+        if (!grouped.isEmpty()) {
+            return grouped;
+        }
+        String fallbackKey = resolveFallbackKey(dataSources, keyStrategy);
+        grouped.put(fallbackKey, Collections.emptyList());
+        return grouped;
+    }
+
+    private String resolveGroupKey(DataPoint dataPoint, String keyStrategy) {
+        if ("device".equalsIgnoreCase(keyStrategy)) {
+            return dataPoint.getDeviceId();
+        }
+        return dataPoint.getDeviceId() + "#" + dataPoint.getPointCode();
+    }
+
+    private String resolveFallbackKey(List<RuleDataSource> dataSources, String keyStrategy) {
+        if (dataSources == null || dataSources.isEmpty()) {
+            return "global";
+        }
+        RuleDataSource firstSource = dataSources.getFirst();
+        if ("device".equalsIgnoreCase(keyStrategy)) {
+            return firstSource.getDeviceId();
+        }
+        String pointCode = resolveSinglePointCode(firstSource);
+        if (pointCode != null) {
+            return firstSource.getDeviceId() + "#" + pointCode;
+        }
+        return firstSource.getDeviceId();
+    }
+
+    private void createAlarmIfNeeded(RuleConfig ruleConfig,
+                                     List<RuleDataSource> dataSources,
+                                     String windowKey,
+                                     Map<String, Object> resultData) {
+        if (!AlarmSupport.isAlert(resultData)) {
+            return;
+        }
+        AlarmSupport.AlarmKey alarmKey = AlarmSupport.parseWindowKey(windowKey);
+        RuleDataSource matchedSource = matchSource(dataSources, alarmKey.deviceId(), alarmKey.pointCode());
+
+        AlarmUpsertCommand command = new AlarmUpsertCommand();
+        command.setSourceType("rule");
+        command.setSourceId(ruleConfig.getId());
+        command.setRuleId(ruleConfig.getId());
+        command.setRuleName(ruleConfig.getRuleName());
+        command.setDeviceId(firstNonBlank(alarmKey.deviceId(), matchedSource == null ? null : matchedSource.getDeviceId()));
+        command.setDeviceName(firstNonBlank(matchedSource == null ? null : matchedSource.getDeviceName(), command.getDeviceId()));
+        command.setPointCode(firstNonBlank(alarmKey.pointCode(), matchedSource != null ? resolveSinglePointCode(matchedSource) : null));
+        command.setDedupKey(buildDedupKey(ruleConfig.getId(), command.getDeviceId(), command.getPointCode()));
+        command.setAlarmTitle(AlarmSupport.resolveMessage(resultData, ruleConfig.getRuleName()));
+        command.setAlarmMessage(AlarmSupport.resolveMessage(resultData, ruleConfig.getRuleName()));
+        command.setAlarmLevel(AlarmSupport.resolveLevel(resultData));
+        command.setMetricName(AlarmSupport.resolveMetricName(resultData));
+        command.setMetricValue(AlarmSupport.resolveMetricValue(resultData));
+        command.setResultData(resultData);
+        command.setTriggerTime(new Date());
+        alarmService.createOrMergeAlarm(command);
+    }
+
+    private RuleDataSource matchSource(List<RuleDataSource> dataSources, String deviceId, String pointCode) {
+        if (dataSources == null || dataSources.isEmpty()) {
+            return null;
+        }
+        for (RuleDataSource dataSource : dataSources) {
+            if (deviceId != null && !deviceId.equals(dataSource.getDeviceId())) {
+                continue;
+            }
+            if (pointCode == null) {
+                return dataSource;
+            }
+            String sourcePointCode = resolveSinglePointCode(dataSource);
+            if (sourcePointCode == null || pointCode.equals(sourcePointCode) || containsPointCode(dataSource, pointCode)) {
+                return dataSource;
+            }
+        }
+        return dataSources.getFirst();
+    }
+
+    private boolean containsPointCode(RuleDataSource dataSource, String pointCode) {
+        if (dataSource == null || dataSource.getPointCodes() == null || dataSource.getPointCodes().isBlank()) {
+            return true;
+        }
+        try {
+            List<String> pointCodes = objectMapper.readValue(dataSource.getPointCodes(), List.class);
+            return pointCodes.contains(pointCode);
+        } catch (Exception e) {
+            return dataSource.getPointCodes().contains(pointCode);
+        }
+    }
+
+    private String resolveSinglePointCode(RuleDataSource dataSource) {
+        if (dataSource == null || dataSource.getPointCodes() == null || dataSource.getPointCodes().isBlank()) {
+            return null;
+        }
+        try {
+            List<String> pointCodes = objectMapper.readValue(dataSource.getPointCodes(), List.class);
+            return pointCodes.size() == 1 ? pointCodes.getFirst() : null;
+        } catch (Exception e) {
+            return dataSource.getPointCodes();
+        }
+    }
+
+    private String buildDedupKey(String ruleId, String deviceId, String pointCode) {
+        return String.join(":",
+                "rule",
+                ruleId == null ? "" : ruleId,
+                deviceId == null ? "" : deviceId,
+                pointCode == null ? "" : pointCode);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private long resolveWindowMs(RuleConfig ruleConfig) {

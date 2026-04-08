@@ -1,6 +1,6 @@
 package com.bit.iot.plugin;
 
-import com.bit.iot.integration.plugin.BasePlugin;
+import com.bit.iot.integration.base.BasePlugin;
 import lombok.extern.slf4j.Slf4j;
 
 /**

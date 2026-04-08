@@ -51,4 +51,11 @@ public class IntegrationConfigParam implements Serializable {
     @TableField("param_value")
     @Schema(description = "插件配置参数value")
     private String paramValue;
+
+    /**
+     * 插件配置参数描述
+     */
+    @TableField("param_desc")
+    @Schema(description = "插件配置参数描述")
+    private String paramDesc;
 }

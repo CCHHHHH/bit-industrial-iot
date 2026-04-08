@@ -4,12 +4,17 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.integration.model.entity.IntegrationPlugin;
+import com.bit.iot.integration.model.dto.PluginConfigItemDTO;
+import com.bit.iot.integration.model.request.IntegrationPluginRequest;
+import com.bit.iot.integration.model.vo.IntegrationPluginConfigVO;
+import com.bit.iot.integration.model.vo.IntegrationPluginVO;
 import com.bit.iot.integration.plugin.PluginManager;
 import com.bit.iot.integration.plugin.PluginWrapper;
 import com.bit.iot.integration.service.IIntegrationPluginService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,20 +45,24 @@ public class IntegrationPluginController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询插件列表")
-    public Result<List<IntegrationPlugin>> getPluginList(
+    public Result<List<IntegrationPluginVO>> getPluginList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String pluginName) {
         Page<IntegrationPlugin> page = new Page<>(current, size);
         Page<IntegrationPlugin> result = pluginService.getPluginList(page, pluginName);
-        return success(result);
+        Page<IntegrationPluginVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增插件")
-    public Result<Void> addPlugin(@RequestBody IntegrationPlugin plugin) {
+    public Result<Void> addPlugin(@RequestBody IntegrationPluginRequest plugin) {
+        IntegrationPlugin entity = new IntegrationPlugin();
+        BeanUtils.copyProperties(plugin, entity);
         try {
-            boolean success = pluginService.addPlugin(plugin);
+            boolean success = pluginService.addPlugin(entity);
             return success ? success("新增成功") : error("新增失败");
         } catch (RuntimeException e) {
             return error(e.getMessage());
@@ -62,8 +71,10 @@ public class IntegrationPluginController extends BaseController {
 
     @PutMapping
     @Operation(summary = "编辑插件")
-    public Result<Void> editPlugin(@RequestBody IntegrationPlugin plugin) {
-        boolean success = pluginService.editPlugin(plugin);
+    public Result<Void> editPlugin(@RequestBody IntegrationPluginRequest plugin) {
+        IntegrationPlugin entity = new IntegrationPlugin();
+        BeanUtils.copyProperties(plugin, entity);
+        boolean success = pluginService.editPlugin(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 
@@ -76,7 +87,7 @@ public class IntegrationPluginController extends BaseController {
 
     @PostMapping("/upload")
     @Operation(summary = "上传插件")
-    public Result<IntegrationPlugin> uploadPlugin(
+    public Result<IntegrationPluginVO> uploadPlugin(
             @Parameter(description = "插件文件", required = true)
             @RequestParam(value = "file", required = false) MultipartFile file,
             @Parameter(description = "插件名称（可选，默认使用文件名）")
@@ -92,7 +103,7 @@ public class IntegrationPluginController extends BaseController {
         
         try {
             IntegrationPlugin plugin = pluginService.uploadPlugin(file, pluginName, description, pluginType);
-            return success(plugin);
+            return success(toVO(plugin));
         } catch (Exception e) {
             return error("上传失败：" + e.getMessage());
         }
@@ -122,18 +133,35 @@ public class IntegrationPluginController extends BaseController {
 
     @GetMapping("/list-with-status")
     @Operation(summary = "查询插件列表（带状态过滤）")
-    public Result<List<IntegrationPlugin>> getPluginListWithStatus(
+    public Result<List<IntegrationPluginVO>> getPluginListWithStatus(
             String pluginName,
             Integer pluginStatus) {
         List<IntegrationPlugin> result = pluginService.getPluginListWithStatus(pluginName, pluginStatus);
-        return success(result);
+        return success(result.stream().map(this::toVO).toList());
     }
 
     @GetMapping("/enabled")
     @Operation(summary = "查询已启用的插件列表")
-    public Result<List<IntegrationPlugin>> getEnabledPlugins() {
+    public Result<List<IntegrationPluginVO>> getEnabledPlugins() {
         List<IntegrationPlugin> result = pluginService.getPluginListWithStatus(null, 1);
-        return success(result);
+        return success(result.stream().map(this::toVO).toList());
+    }
+
+    @GetMapping("/{id}/default-config")
+    @Operation(summary = "读取插件默认配置模板")
+    public Result<IntegrationPluginConfigVO> getPluginDefaultConfig(@PathVariable String id) {
+        IntegrationPlugin plugin = pluginService.getById(id);
+        if (plugin == null) {
+            return error("插件不存在");
+        }
+        try {
+            IntegrationPluginConfigVO vo = new IntegrationPluginConfigVO();
+            vo.setPluginId(id);
+            vo.setConfigItems(pluginManager.readDefaultConfig(id, plugin.getPluginPath()));
+            return success(vo);
+        } catch (Exception e) {
+            return error("读取默认配置失败：" + e.getMessage());
+        }
     }
 
     @PostMapping("/{id}/enable-plugin")
@@ -182,19 +210,10 @@ public class IntegrationPluginController extends BaseController {
         }
     }
 
-    @PostMapping("/{id}/invoke")
-    @Operation(summary = "调用插件方法")
-    public Result<Object> invokePlugin(
-            @PathVariable String id,
-            @Parameter(description = "方法名", required = true)
-            @RequestParam String methodName,
-            @Parameter(description = "参数（JSON 格式）")
-            @RequestBody(required = false) Object[] args) {
-        try {
-            Object result = pluginManager.invokePlugin(id, methodName, args);
-            return success(result);
-        } catch (Exception e) {
-            return error("调用失败：" + e.getMessage());
-        }
+    private IntegrationPluginVO toVO(IntegrationPlugin plugin) {
+        IntegrationPluginVO vo = new IntegrationPluginVO();
+        BeanUtils.copyProperties(plugin, vo);
+        return vo;
     }
+
 }

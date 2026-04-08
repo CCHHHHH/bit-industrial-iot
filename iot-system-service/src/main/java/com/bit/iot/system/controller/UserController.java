@@ -3,13 +3,13 @@ package com.bit.iot.system.controller;
 import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bit.iot.security.annotation.RequirePermission;
-import com.bit.iot.security.context.UserContextHolder;
 import com.bit.iot.system.model.dto.UserResponseDto;
 import com.bit.iot.system.model.entity.User;
+import com.bit.iot.system.model.request.UserRequest;
 import com.bit.iot.system.service.IUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -44,15 +44,19 @@ public class UserController extends BaseController {
 
     @PostMapping
     @Operation(summary = "新增用户")
-    public Result<Void> addUser(@RequestBody User user) {
-        boolean success = userService.addUser(user);
+    public Result<Void> addUser(@RequestBody UserRequest user) {
+        User entity = new User();
+        BeanUtils.copyProperties(user, entity);
+        boolean success = userService.addUser(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑用户")
-    public Result<Void> editUser(@RequestBody User user) {
-        boolean success = userService.editUser(user);
+    public Result<Void> editUser(@RequestBody UserRequest user) {
+        User entity = new User();
+        BeanUtils.copyProperties(user, entity);
+        boolean success = userService.editUser(entity);
         return success ? success("修改成功") : error("修改失败");
     }
 

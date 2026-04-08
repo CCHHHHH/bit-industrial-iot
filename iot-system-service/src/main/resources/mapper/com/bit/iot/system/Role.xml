@@ -16,20 +16,24 @@
         </collection>
     </resultMap>
 
-    <select id="selectRoleListWithPermissions" resultMap="roleDtoResultMap">
+    <!-- 用于查询权限时映射 roleId -->
+    <resultMap id="permissionWithRoleIdMap" type="com.bit.iot.system.model.dto.PermissionDto">
+        <id property="id" column="id"/>
+        <result property="permissionName" column="permission_name"/>
+        <result property="permissionCode" column="permission_code"/>
+        <result property="permissionDesc" column="permission_desc"/>
+        <result property="permissionType" column="permission_type"/>
+        <result property="roleId" column="role_id"/>
+    </resultMap>
+
+    <!-- 查询角色列表（不包含权限，用于分页） -->
+    <select id="selectRolePage" resultMap="roleDtoResultMap">
         SELECT
             r.id AS role_id,
             r.role_name,
             r.create_time,
-            r.update_time,
-            p.id AS permission_id,
-            p.permission_name,
-            p.permission_code,
-            p.permission_desc,
-            p.permission_type
+            r.update_time
         FROM role r
-        LEFT JOIN role_permission rp ON r.id = rp.role_id
-        LEFT JOIN permission p ON rp.permission_id = p.id
         <where>
             <if test="roleName != null and roleName != ''">
                 AND r.role_name LIKE CONCAT('%', #{roleName}, '%')
@@ -37,5 +41,24 @@
         </where>
         ORDER BY r.create_time DESC
     </select>
+
+    <!-- 批量查询角色的权限信息 -->
+    <select id="selectPermissionsByRoleIds" resultMap="permissionWithRoleIdMap">
+        SELECT
+            p.id,
+            p.permission_name,
+            p.permission_code,
+            p.permission_desc,
+            p.permission_type,
+            rp.role_id
+        FROM permission p
+        INNER JOIN role_permission rp ON p.id = rp.permission_id
+        WHERE rp.role_id IN
+        <foreach collection="roleIds" item="roleId" open="(" separator="," close=")">
+            #{roleId}
+        </foreach>
+    </select>
+
+
 
 </mapper>

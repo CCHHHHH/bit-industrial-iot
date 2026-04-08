@@ -3,10 +3,13 @@ package com.bit.iot.system.controller;
 import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.bit.iot.system.model.request.PermissionRequest;
 import com.bit.iot.system.model.entity.Permission;
+import com.bit.iot.system.model.vo.PermissionVO;
 import com.bit.iot.system.service.IPermissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,27 +33,39 @@ public class PermissionController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询权限列表")
-    public Result<List<Permission>> getPermissionList(
+    public Result<List<PermissionVO>> getPermissionList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String permissionName) {
         Page<Permission> page = new Page<>(current, size);
         Page<Permission> result = permissionService.getPermissionList(page, permissionName);
-        return success(result);
+        Page<PermissionVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping
     @Operation(summary = "新增权限")
-    public Result<Void> addPermission(@RequestBody Permission permission) {
-        boolean success = permissionService.addPermission(permission);
+    public Result<Void> addPermission(@RequestBody PermissionRequest permission) {
+        Permission entity = new Permission();
+        BeanUtils.copyProperties(permission, entity);
+        boolean success = permissionService.addPermission(entity);
         return success ? success("新增成功") : error("新增失败");
     }
 
     @PutMapping
     @Operation(summary = "编辑权限")
-    public Result<Void> editPermission(@RequestBody Permission permission) {
-        boolean success = permissionService.editPermission(permission);
+    public Result<Void> editPermission(@RequestBody PermissionRequest permission) {
+        Permission entity = new Permission();
+        BeanUtils.copyProperties(permission, entity);
+        boolean success = permissionService.editPermission(entity);
         return success ? success("修改成功") : error("修改失败");
+    }
+
+    private PermissionVO toVO(Permission permission) {
+        PermissionVO vo = new PermissionVO();
+        BeanUtils.copyProperties(permission, vo);
+        return vo;
     }
 
     @DeleteMapping("/{permissionId}")

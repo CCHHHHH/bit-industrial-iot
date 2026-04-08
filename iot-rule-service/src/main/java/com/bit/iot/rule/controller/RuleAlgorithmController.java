@@ -4,10 +4,13 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.rule.model.entity.RuleAlgorithm;
+import com.bit.iot.rule.model.request.RuleAlgorithmRequest;
+import com.bit.iot.rule.model.vo.RuleAlgorithmVO;
 import com.bit.iot.rule.service.IRuleAlgorithmService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,18 +33,21 @@ public class RuleAlgorithmController extends BaseController {
 
     @GetMapping("/list")
     @Operation(summary = "分页查询算法列表")
-    public Result<List<RuleAlgorithm>> getAlgorithmList(
+    public Result<List<RuleAlgorithmVO>> getAlgorithmList(
             @RequestParam(defaultValue = "1") Integer current,
             @RequestParam(defaultValue = "10") Integer size,
             String algorithmName,
             String algorithmType) {
         Page<RuleAlgorithm> page = new Page<>(current, size);
-        return success(algorithmService.getAlgorithmList(page, algorithmName, algorithmType));
+        Page<RuleAlgorithm> result = algorithmService.getAlgorithmList(page, algorithmName, algorithmType);
+        Page<RuleAlgorithmVO> responsePage = new Page<>(result.getCurrent(), result.getSize(), result.getTotal());
+        responsePage.setRecords(result.getRecords().stream().map(this::toVO).toList());
+        return success(responsePage);
     }
 
     @PostMapping("/upload")
     @Operation(summary = "上传算法文件（JAR 或 Python）")
-    public Result<RuleAlgorithm> uploadAlgorithm(
+    public Result<RuleAlgorithmVO> uploadAlgorithm(
             @Parameter(description = "算法文件", required = true)
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String algorithmName,
@@ -53,7 +59,7 @@ public class RuleAlgorithmController extends BaseController {
         try {
             RuleAlgorithm algorithm = algorithmService.uploadAlgorithm(
                     file, algorithmName, algorithmDesc, algorithmType, algorithmClass, algorithmVersion);
-            return success(algorithm);
+            return success(toVO(algorithm));
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
@@ -61,9 +67,11 @@ public class RuleAlgorithmController extends BaseController {
 
     @PostMapping
     @Operation(summary = "新增算法（仅元数据）")
-    public Result<Void> addAlgorithm(@RequestBody RuleAlgorithm algorithm) {
+    public Result<Void> addAlgorithm(@RequestBody RuleAlgorithmRequest algorithm) {
+        RuleAlgorithm entity = new RuleAlgorithm();
+        BeanUtils.copyProperties(algorithm, entity);
         try {
-            return algorithmService.addAlgorithm(algorithm) ? success("新增成功") : error("新增失败");
+            return algorithmService.addAlgorithm(entity) ? success("新增成功") : error("新增失败");
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
@@ -71,8 +79,10 @@ public class RuleAlgorithmController extends BaseController {
 
     @PutMapping
     @Operation(summary = "编辑算法")
-    public Result<Void> editAlgorithm(@RequestBody RuleAlgorithm algorithm) {
-        return algorithmService.editAlgorithm(algorithm) ? success("修改成功") : error("修改失败");
+    public Result<Void> editAlgorithm(@RequestBody RuleAlgorithmRequest algorithm) {
+        RuleAlgorithm entity = new RuleAlgorithm();
+        BeanUtils.copyProperties(algorithm, entity);
+        return algorithmService.editAlgorithm(entity) ? success("修改成功") : error("修改失败");
     }
 
     @DeleteMapping("/{id}")
@@ -99,5 +109,11 @@ public class RuleAlgorithmController extends BaseController {
         } catch (RuntimeException e) {
             return error(e.getMessage());
         }
+    }
+
+    private RuleAlgorithmVO toVO(RuleAlgorithm algorithm) {
+        RuleAlgorithmVO vo = new RuleAlgorithmVO();
+        BeanUtils.copyProperties(algorithm, vo);
+        return vo;
     }
 }

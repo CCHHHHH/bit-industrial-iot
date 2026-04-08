@@ -36,6 +36,11 @@ public class RuleExecutionLog implements Serializable {
     @TableField("rule_id")
     private String ruleId;
 
+    /** 窗口键（deviceId 或 deviceId#pointCode） */
+    @Schema(description = "窗口键")
+    @TableField("window_key")
+    private String windowKey;
+
     /** 执行开始时间 */
     @Schema(description = "执行开始时间")
     @TableField("start_time")

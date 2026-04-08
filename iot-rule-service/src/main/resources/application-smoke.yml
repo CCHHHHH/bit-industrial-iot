@@ -1,0 +1,13 @@
+tdengine:
+  enabled: false
+
+rule:
+  algorithm:
+    upload-path: ./algorithms/upload
+    shared-path: ./algorithms/shared
+  engine:
+    type: flink
+
+flink:
+  job:
+    jar-path: ./iot-flink-job/target/iot-flink-job-0.0.1-SNAPSHOT.jar

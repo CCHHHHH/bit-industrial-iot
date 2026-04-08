@@ -1,12 +1,17 @@
 server:
   port: 9004
+  servlet:
+    context-path: /iot
 
 spring:
+  jackson:
+    time-zone: GMT+8
+    date-format: yyyy-MM-dd HH:mm:ss
   application:
     name: iot-rule-service
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/bit_iot?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8
+    url: jdbc:mysql://127.0.0.1:3306/bit_iot?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&useSSL=false
     username: root
     password: chenhao1998@
   cloud:
@@ -33,6 +38,7 @@ rule:
     upload-path: ./algorithms
     # 算法共享存储路径（Flink 集群各 TaskManager 可访问）
     shared-path: /mnt/shared/algorithms
+    max-file-size-bytes: 52428800
   # 规则引擎模式：flink（提交到 Flink 集群） / local（本地线程池，开发调试用）
   engine:
     type: flink
@@ -50,6 +56,8 @@ tdengine:
   username: root
   password: taosdata
   super-table: device_data
+  result-stable: rule_result_stable
+  enabled: false
 
 # MQTT 连接（realtime 模式传递给 Flink Job）
 mqtt:
@@ -57,6 +65,10 @@ mqtt:
   topic-pattern: devices/+/telemetry
   username:
   password:
+
+data:
+  service:
+    base-url: http://127.0.0.1:9005/iot
 
 # Knife4j API 文档
 knife4j:

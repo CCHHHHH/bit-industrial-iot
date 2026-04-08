@@ -8,11 +8,12 @@
         <result column="integration_id" property="integrationId" />
         <result column="param_key" property="paramKey" />
         <result column="param_value" property="paramValue" />
+        <result column="param_desc" property="paramDesc" />
     </resultMap>
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, integration_id, param_key, param_value
+        id, integration_id, param_key, param_value, param_desc
     </sql>
 
 </mapper>
