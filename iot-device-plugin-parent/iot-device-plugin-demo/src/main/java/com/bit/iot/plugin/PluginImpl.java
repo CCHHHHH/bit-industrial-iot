@@ -64,6 +64,8 @@ public class PluginImpl extends BasePlugin {
 
     @Override
     public Object handleTimeSeriesData(String sourceData) {
+        // Demo 插件直接返回 sourceData，便于平台侧使用标准点位 JSON 或设备模拟 payload 验证采集入库链路。
+        // 示例: {"deviceId":"demo-device-001","pointCode":"TEMP_001","value":25.5,"quality":0}
         return sourceData;
     }
 }

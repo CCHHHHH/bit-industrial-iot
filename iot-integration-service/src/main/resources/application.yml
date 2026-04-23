@@ -27,3 +27,9 @@ plugin:
   upload:
     path: /Users/chenhao/Desktop
     max-file-size-bytes: 52428800
+
+tdengine:
+  jdbc-url: jdbc:TAOS-RS://127.0.0.1:6041/iot_data
+  username: root
+  password: taosdata
+  super-table: point_data

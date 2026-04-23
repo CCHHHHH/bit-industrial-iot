@@ -7,11 +7,13 @@ import com.bit.iot.integration.model.entity.IntegrationConfig;
 import com.bit.iot.integration.model.entity.IntegrationPlugin;
 import com.bit.iot.integration.dao.IntegrationConfigMapper;
 import com.bit.iot.integration.plugin.PluginManager;
+import com.bit.iot.integration.scheduler.IntegrationCollectScheduler;
 import com.bit.iot.integration.service.IIntegrationConfigService;
 import com.bit.iot.integration.service.IIntegrationPluginService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -38,6 +40,10 @@ public class IntegrationConfigServiceImpl extends ServiceImpl<IntegrationConfigM
     
     @Autowired
     private IIntegrationPluginService pluginService;
+
+    @Autowired
+    @Lazy
+    private IntegrationCollectScheduler collectScheduler;
 
     @Override
     public Page<IntegrationConfigListItemDTO> getIntegrationConfigList(Page<IntegrationConfig> page, String integrationName, String pluginId) {
@@ -168,7 +174,11 @@ public class IntegrationConfigServiceImpl extends ServiceImpl<IntegrationConfigM
         // 更新数据库状态
         config.setIntegrationStatus(1); // 1 表示运行中
         config.setUpdateTime(new Date());
-        return this.updateById(config);
+        boolean updated = this.updateById(config);
+        if (updated) {
+            collectScheduler.startIntegration(id);
+        }
+        return updated;
     }
 
     @Override
@@ -197,7 +207,9 @@ public class IntegrationConfigServiceImpl extends ServiceImpl<IntegrationConfigM
         // 更新数据库状态
         config.setIntegrationStatus(0); // 0 表示停用
         config.setUpdateTime(new Date());
-        return this.updateById(config);
+        boolean updated = this.updateById(config);
+        collectScheduler.stopIntegration(id);
+        return updated;
     }
 
 }

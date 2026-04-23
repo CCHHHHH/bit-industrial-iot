@@ -4,10 +4,12 @@ import bit.iot.common.controller.BaseController;
 import bit.iot.common.controller.Result;
 import com.bit.iot.integration.model.entity.IntegrationConfig;
 import com.bit.iot.integration.model.entity.IntegrationDataMapping;
+import com.bit.iot.integration.model.dto.TimeSeriesCollectResultDTO;
 import com.bit.iot.integration.model.enums.MappingTypeEnum;
 import com.bit.iot.integration.plugin.PluginManager;
 import com.bit.iot.integration.service.IIntegrationConfigService;
 import com.bit.iot.integration.service.IIntegrationDataMappingService;
+import com.bit.iot.integration.service.IntegrationTimeSeriesCollectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,6 +38,9 @@ public class IntegrationDataController extends BaseController {
 
     @Autowired
     private PluginManager pluginManager;
+
+    @Autowired
+    private IntegrationTimeSeriesCollectService timeSeriesCollectService;
 
     /**
      * 获取设备属性
@@ -74,6 +79,18 @@ public class IntegrationDataController extends BaseController {
             @Parameter(description = "集成实例 ID", required = true)
             @PathVariable String integrationId) {
         return invokePluginByMappingType(integrationId, MappingTypeEnum.TIME_SERIES_DATA);
+    }
+
+    @PostMapping("/{integrationId}/time-series/collect-once")
+    @Operation(summary = "手动采集并写入时序数据", description = "调用插件 handleTimeSeriesData 方法，并将返回点位写入 TDengine")
+    public Result<TimeSeriesCollectResultDTO> collectTimeSeriesOnce(
+            @Parameter(description = "集成实例 ID", required = true)
+            @PathVariable String integrationId) {
+        try {
+            return success(timeSeriesCollectService.collectAndWrite(integrationId));
+        } catch (Exception e) {
+            return error("采集写入失败：" + e.getMessage());
+        }
     }
 
     // -----------------------------------------------------------------------

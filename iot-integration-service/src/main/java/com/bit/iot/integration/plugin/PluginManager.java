@@ -2,6 +2,7 @@ package com.bit.iot.integration.plugin;
 
 import com.bit.iot.integration.model.entity.IntegrationConfig;
 import com.bit.iot.integration.model.entity.IntegrationPlugin;
+import com.bit.iot.integration.scheduler.IntegrationCollectScheduler;
 import com.bit.iot.integration.service.IIntegrationConfigService;
 import com.bit.iot.integration.service.IIntegrationConfigParamService;
 import com.bit.iot.integration.service.IIntegrationPluginService;
@@ -40,6 +41,10 @@ public class PluginManager {
 
     @Autowired
     private IIntegrationConfigParamService integrationConfigParamService;
+
+    @Autowired
+    @Lazy
+    private IntegrationCollectScheduler collectScheduler;
     
     /**
      * 应用启动完成后加载已启用的插件
@@ -256,6 +261,9 @@ public class PluginManager {
         try {
             wrapper.getPluginInstance().loadConfig(integrationConfigParamService.getConfigParamMap(integrationId));
             wrapper.getPluginInstance().startInstance(integrationId, config);
+            if (config != null && config.getIntegrationStatus() != null && config.getIntegrationStatus() == 1) {
+                collectScheduler.startIntegration(integrationId);
+            }
             log.info("插件启动成功：pluginId={}, integrationId={}", pluginId, integrationId);
         } catch (Exception e) {
             log.error("插件启动失败：pluginId={}, integrationId={}", pluginId, integrationId, e);
@@ -270,6 +278,8 @@ public class PluginManager {
      * @throws Exception 执行异常
      */
     public void stopIntegrationInstance(String pluginId, String integrationId) throws Exception {
+        collectScheduler.stopIntegration(integrationId);
+
         PluginWrapper wrapper = pluginLoader.getPlugin(pluginId);
         if (wrapper == null) {
             throw new IllegalStateException("插件未加载：" + pluginId);

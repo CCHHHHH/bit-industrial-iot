@@ -5,8 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bit.iot.integration.model.entity.IntegrationDataMapping;
 import com.bit.iot.integration.dao.IntegrationDataMappingMapper;
 import com.bit.iot.integration.model.enums.SchedulerUnitEnum;
+import com.bit.iot.integration.scheduler.IntegrationCollectScheduler;
 import com.bit.iot.integration.service.IIntegrationDataMappingService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,6 +24,12 @@ import java.util.List;
 @Service
 public class IntegrationDataMappingServiceImpl extends ServiceImpl<IntegrationDataMappingMapper, IntegrationDataMapping> implements IIntegrationDataMappingService {
 
+    private final IntegrationCollectScheduler collectScheduler;
+
+    public IntegrationDataMappingServiceImpl(@Lazy IntegrationCollectScheduler collectScheduler) {
+        this.collectScheduler = collectScheduler;
+    }
+
     @Override
     public Page<IntegrationDataMapping> getDataMappingList(Page<IntegrationDataMapping> page, String integrationId) {
         QueryWrapper<IntegrationDataMapping> queryWrapper = new QueryWrapper<>();
@@ -33,17 +41,38 @@ public class IntegrationDataMappingServiceImpl extends ServiceImpl<IntegrationDa
     
     @Override
     public boolean addDataMapping(IntegrationDataMapping dataMapping) {
-        return this.save(dataMapping);
+        boolean saved = this.save(dataMapping);
+        if (saved) {
+            collectScheduler.restartIfRunning(dataMapping.getIntegrationId());
+        }
+        return saved;
     }
     
     @Override
     public boolean editDataMapping(IntegrationDataMapping dataMapping) {
-        return this.updateById(dataMapping);
+        IntegrationDataMapping oldMapping = this.getById(dataMapping.getId());
+        boolean updated = this.updateById(dataMapping);
+        if (updated) {
+            String integrationId = dataMapping.getIntegrationId() != null
+                    ? dataMapping.getIntegrationId()
+                    : oldMapping == null ? null : oldMapping.getIntegrationId();
+            if (oldMapping != null && oldMapping.getIntegrationId() != null
+                    && !oldMapping.getIntegrationId().equals(integrationId)) {
+                collectScheduler.restartIfRunning(oldMapping.getIntegrationId());
+            }
+            collectScheduler.restartIfRunning(integrationId);
+        }
+        return updated;
     }
     
     @Override
     public boolean deleteDataMapping(String id) {
-        return this.removeById(id);
+        IntegrationDataMapping oldMapping = this.getById(id);
+        boolean removed = this.removeById(id);
+        if (removed && oldMapping != null) {
+            collectScheduler.restartIfRunning(oldMapping.getIntegrationId());
+        }
+        return removed;
     }
     
     @Override
