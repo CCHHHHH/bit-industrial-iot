@@ -54,7 +54,7 @@ public class RuleConfigListItemDTO {
     @Schema(description = "并行度")
     private Integer parallelism;
 
-    @Schema(description = "规则状态（0-停止，1-运行中）")
+    @Schema(description = "规则状态（0-已停止，1-运行中，2-已完成，3-失败）")
     private Integer ruleStatus;
 
     @Schema(description = "Flink Job ID")

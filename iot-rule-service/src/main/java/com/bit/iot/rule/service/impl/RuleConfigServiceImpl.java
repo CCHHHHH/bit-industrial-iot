@@ -9,9 +9,11 @@ import com.bit.iot.rule.dao.RuleDataSourceMapper;
 import com.bit.iot.rule.dao.RuleParamMapper;
 import com.bit.iot.rule.engine.RuleEngineManager;
 import com.bit.iot.rule.flink.FlinkJobManager;
+import com.bit.iot.rule.flink.FlinkJobStatus;
 import com.bit.iot.rule.model.dto.RuleConfigDetailDTO;
 import com.bit.iot.rule.model.dto.RuleConfigListItemDTO;
 import com.bit.iot.rule.model.entity.*;
+import com.bit.iot.rule.model.enums.RuleStatusEnum;
 import com.bit.iot.rule.model.vo.RuleConfigVO;
 import com.bit.iot.rule.model.vo.RuleDataSourceVO;
 import com.bit.iot.rule.model.vo.RuleParamVO;
@@ -136,6 +138,9 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
         qw.orderByDesc("create_time");
 
         Page<RuleConfig> configPage = this.page(page, qw);
+        if ("flink".equalsIgnoreCase(engineType)) {
+            configPage.getRecords().forEach(this::syncFlinkRuntimeStateIfNeeded);
+        }
 
         List<String> algorithmIds = configPage.getRecords().stream()
                 .map(RuleConfig::getAlgorithmId)
@@ -183,6 +188,9 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
     public RuleConfigDetailDTO getRuleConfigDetail(String id) {
         RuleConfig config = this.getById(id);
         if (config == null) return null;
+        if ("flink".equalsIgnoreCase(engineType)) {
+            syncFlinkRuntimeStateIfNeeded(config);
+        }
 
         RuleAlgorithm algorithm = algorithmService.getById(config.getAlgorithmId());
 
@@ -222,7 +230,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
         if (count > 0) {
             throw new RuntimeException("规则名称已存在：" + ruleConfig.getRuleName());
         }
-        ruleConfig.setRuleStatus(0);
+        ruleConfig.setRuleStatus(RuleStatusEnum.STOPPED.getCode());
         if (ruleConfig.getKeyStrategy() == null) ruleConfig.setKeyStrategy("device_point");
         if (ruleConfig.getParallelism() == null) ruleConfig.setParallelism(2);
         Date now = new Date();
@@ -241,7 +249,8 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteRuleConfig(String id) {
         RuleConfig config = this.getById(id);
-        if (config != null && config.getRuleStatus() != null && config.getRuleStatus() == 1) {
+        if (config != null && config.getRuleStatus() != null
+                && config.getRuleStatus().equals(RuleStatusEnum.RUNNING.getCode())) {
             try {
                 stopRule(id);
             } catch (Exception e) {
@@ -291,7 +300,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
     public boolean startRule(String id) {
         RuleConfig config = this.getById(id);
         if (config == null) throw new RuntimeException("规则不存在");
-        if (config.getRuleStatus() != null && config.getRuleStatus() == 1) {
+        if (config.getRuleStatus() != null && config.getRuleStatus().equals(RuleStatusEnum.RUNNING.getCode())) {
             throw new RuntimeException("规则已在运行中");
         }
 
@@ -328,7 +337,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
                     });
         }
 
-        config.setRuleStatus(1);
+        config.setRuleStatus(RuleStatusEnum.RUNNING.getCode());
         config.setUpdateTime(new Date());
         return this.updateById(config);
     }
@@ -348,7 +357,7 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
             ruleEngineManager.stopRule(id);
         }
 
-        config.setRuleStatus(0);
+        config.setRuleStatus(RuleStatusEnum.STOPPED.getCode());
         config.setFlinkJobId(null);
         config.setUpdateTime(new Date());
         return this.updateById(config);
@@ -553,5 +562,57 @@ public class RuleConfigServiceImpl extends ServiceImpl<RuleConfigMapper, RuleCon
             return originalPath.toString();
         }
         return sharedPath.toString();
+    }
+
+    private void syncFlinkRuntimeStateIfNeeded(RuleConfig config) {
+        if (config == null) {
+            return;
+        }
+        String flinkJobId = config.getFlinkJobId();
+        Integer ruleStatus = config.getRuleStatus();
+        if ((flinkJobId == null || flinkJobId.isBlank())
+                && !Integer.valueOf(RuleStatusEnum.RUNNING.getCode()).equals(ruleStatus)) {
+            return;
+        }
+        if (flinkJobId == null || flinkJobId.isBlank()) {
+            if (Integer.valueOf(RuleStatusEnum.RUNNING.getCode()).equals(ruleStatus)) {
+                config.setRuleStatus(RuleStatusEnum.STOPPED.getCode());
+                config.setUpdateTime(new Date());
+                this.updateById(config);
+            }
+            return;
+        }
+
+        flinkJobManager.registerJobMapping(config.getId(), flinkJobId);
+        FlinkJobStatus status = flinkJobManager.getJobStatusByJobId(flinkJobId);
+        if (status == FlinkJobStatus.RUNNING
+                || status == FlinkJobStatus.CREATED
+                || status == FlinkJobStatus.RESTARTING
+                || status == FlinkJobStatus.RECONCILING) {
+            if (!Integer.valueOf(RuleStatusEnum.RUNNING.getCode()).equals(ruleStatus)) {
+                config.setRuleStatus(RuleStatusEnum.RUNNING.getCode());
+                config.setUpdateTime(new Date());
+                this.updateById(config);
+            }
+            return;
+        }
+
+        config.setRuleStatus(mapTerminalRuleStatus(status));
+        config.setFlinkJobId(null);
+        config.setUpdateTime(new Date());
+        this.updateById(config);
+        flinkJobManager.removeJobMapping(config.getId());
+    }
+
+    private Integer mapTerminalRuleStatus(FlinkJobStatus status) {
+        if (status == FlinkJobStatus.FINISHED) {
+            return RuleStatusEnum.COMPLETED.getCode();
+        }
+        if (status == FlinkJobStatus.FAILED
+                || status == FlinkJobStatus.FAILING
+                || status == FlinkJobStatus.SUSPENDED) {
+            return RuleStatusEnum.FAILED.getCode();
+        }
+        return RuleStatusEnum.STOPPED.getCode();
     }
 }

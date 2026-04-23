@@ -1,24 +1,25 @@
 package com.bit.iot.rule.model.enums;
 
-import lombok.Getter;
-
 /**
- * 规则运行状态枚举
+ * 规则运行状态
  *
  * @author chenhao
- * @since 2026-03-27
+ * @since 2026-04-10
  */
-@Getter
 public enum RuleStatusEnum {
 
-    STOPPED(0, "已停止"),
-    RUNNING(1, "运行中");
+    STOPPED(0),
+    RUNNING(1),
+    COMPLETED(2),
+    FAILED(3);
 
     private final int code;
-    private final String description;
 
-    RuleStatusEnum(int code, String description) {
+    RuleStatusEnum(int code) {
         this.code = code;
-        this.description = description;
+    }
+
+    public int getCode() {
+        return code;
     }
 }

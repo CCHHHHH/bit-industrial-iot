@@ -20,10 +20,10 @@ spring:
     password: chenhao1998@
 
 tdengine:
-  jdbc-url: jdbc:TAOS-RS://localhost:6041/bit_iot_ts
+  jdbc-url: jdbc:TAOS-RS://127.0.0.1:6041/iot_data
   username: root
   password: taosdata
-  super-table: device_data
+  super-table: point_data
   connect-timeout-seconds: 5
   query-timeout-seconds: 30
   max-limit-per-query: 5000

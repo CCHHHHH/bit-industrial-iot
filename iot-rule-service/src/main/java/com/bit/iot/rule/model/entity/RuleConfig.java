@@ -93,8 +93,8 @@ public class RuleConfig implements Serializable {
     @TableField("parallelism")
     private Integer parallelism;
 
-    /** 规则状态：0-停止，1-运行中 */
-    @Schema(description = "规则状态（0-停止，1-运行中）")
+    /** 规则状态：0-已停止，1-运行中，2-已完成，3-失败 */
+    @Schema(description = "规则状态（0-已停止，1-运行中，2-已完成，3-失败）")
     @TableField("rule_status")
     private Integer ruleStatus;
 

@@ -1,11 +1,13 @@
 package com.bit.iot.rule.flink;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.bit.iot.rule.model.enums.RuleStatusEnum;
 import com.bit.iot.rule.model.entity.RuleConfig;
 import com.bit.iot.rule.service.IRuleConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -23,6 +25,11 @@ public class FlinkJobReconcileRunner {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    public void reconcileOnStartup() {
+        reconcile();
+    }
+
+    @Scheduled(fixedDelayString = "${flink.reconcile.fixed-delay-ms:5000}")
     public void reconcile() {
         List<RuleConfig> configs = ruleConfigService.list(new QueryWrapper<RuleConfig>()
                 .isNotNull("flink_job_id")
@@ -39,8 +46,8 @@ public class FlinkJobReconcileRunner {
 
     private void reconcileOne(RuleConfig config) {
         if (config.getFlinkJobId() == null || config.getFlinkJobId().isBlank()) {
-            if (Integer.valueOf(1).equals(config.getRuleStatus())) {
-                config.setRuleStatus(0);
+            if (Integer.valueOf(RuleStatusEnum.RUNNING.getCode()).equals(config.getRuleStatus())) {
+                config.setRuleStatus(RuleStatusEnum.STOPPED.getCode());
                 ruleConfigService.updateById(config);
             }
             return;
@@ -52,16 +59,28 @@ public class FlinkJobReconcileRunner {
                 || status == FlinkJobStatus.CREATED
                 || status == FlinkJobStatus.RESTARTING
                 || status == FlinkJobStatus.RECONCILING) {
-            if (!Integer.valueOf(1).equals(config.getRuleStatus())) {
-                config.setRuleStatus(1);
+            if (!Integer.valueOf(RuleStatusEnum.RUNNING.getCode()).equals(config.getRuleStatus())) {
+                config.setRuleStatus(RuleStatusEnum.RUNNING.getCode());
                 ruleConfigService.updateById(config);
             }
             return;
         }
 
-        config.setRuleStatus(0);
+        config.setRuleStatus(mapTerminalStatus(status));
         config.setFlinkJobId(null);
         ruleConfigService.updateById(config);
         flinkJobManager.removeJobMapping(config.getId());
+    }
+
+    private Integer mapTerminalStatus(FlinkJobStatus status) {
+        if (status == FlinkJobStatus.FINISHED) {
+            return RuleStatusEnum.COMPLETED.getCode();
+        }
+        if (status == FlinkJobStatus.FAILED
+                || status == FlinkJobStatus.FAILING
+                || status == FlinkJobStatus.SUSPENDED) {
+            return RuleStatusEnum.FAILED.getCode();
+        }
+        return RuleStatusEnum.STOPPED.getCode();
     }
 }

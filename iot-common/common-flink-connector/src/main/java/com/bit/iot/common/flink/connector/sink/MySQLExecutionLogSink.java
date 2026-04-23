@@ -55,11 +55,13 @@ public class MySQLExecutionLogSink extends RichSinkFunction<AlgorithmOutputEvent
                 + "result_data = VALUES(result_data), error_msg = VALUES(error_msg), duration_ms = VALUES(duration_ms)";
 
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            long execEndTime = event.getProcessTime() > 0 ? event.getProcessTime() : System.currentTimeMillis();
+            long execStartTime = Math.max(0L, execEndTime - Math.max(0L, event.getDurationMs()));
             ps.setString(1, UUID.randomUUID().toString().replace("-", ""));
             ps.setString(2, event.getRuleId());
             ps.setString(3, event.getKey());
-            ps.setTimestamp(4, new Timestamp(event.getWindowStart()));
-            ps.setTimestamp(5, new Timestamp(event.getWindowEnd()));
+            ps.setTimestamp(4, new Timestamp(execStartTime));
+            ps.setTimestamp(5, new Timestamp(execEndTime));
             ps.setInt(6, event.isSuccess() ? 1 : 2);
 
             if (event.getResultData() != null) {

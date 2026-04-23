@@ -53,7 +53,7 @@ public class TimeSeriesQueryServiceImpl implements TimeSeriesQueryService {
         int limit = normalizeLimit(request.getLimit());
 
         StringBuilder sql = new StringBuilder()
-                .append("SELECT ts, device_id, point_code, value, quality FROM ")
+                .append("SELECT ts, device_id, point_code, `value`, quality FROM ")
                 .append(resolveTableName())
                 .append(" WHERE ts >= ? AND ts <= ? ");
 
@@ -97,7 +97,7 @@ public class TimeSeriesQueryServiceImpl implements TimeSeriesQueryService {
             }
 
             StringBuilder sql = new StringBuilder()
-                    .append("SELECT ts, device_id, point_code, value, quality FROM ")
+                    .append("SELECT ts, device_id, point_code, `value`, quality FROM ")
                     .append(resolveTableName())
                     .append(" WHERE device_id = ? AND ts >= ? AND ts <= ? ");
             List<Object> params = new ArrayList<>();

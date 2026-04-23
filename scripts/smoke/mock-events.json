@@ -1,0 +1,23 @@
+[
+  {
+    "deviceId": "smoke-device-001",
+    "pointCode": "temp",
+    "timestamp": 1712120400000,
+    "value": 65.5,
+    "quality": 0
+  },
+  {
+    "deviceId": "smoke-device-001",
+    "pointCode": "temp",
+    "timestamp": 1712120400400,
+    "value": 72.8,
+    "quality": 0
+  },
+  {
+    "deviceId": "smoke-device-001",
+    "pointCode": "temp",
+    "timestamp": 1712120400800,
+    "value": 71.1,
+    "quality": 0
+  }
+]

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS `rule_config` (
     `window_unit`   VARCHAR(10)           COMMENT '窗口单位：s / m / h / d',
     `key_strategy`  VARCHAR(20)  DEFAULT 'device_point' COMMENT '分组策略：device_point / device',
     `parallelism`   INT          DEFAULT 2 COMMENT 'Flink Job 并行度',
-    `rule_status`   TINYINT      NOT NULL DEFAULT 0 COMMENT '规则状态：0-停止，1-运行中',
+    `rule_status`   TINYINT      NOT NULL DEFAULT 0 COMMENT '规则状态：0-已停止，1-运行中，2-已完成，3-失败',
     `flink_job_id`  VARCHAR(64)           COMMENT 'Flink Job ID（运行时填充）',
     `create_time`   DATETIME              COMMENT '创建时间',
     `update_time`   DATETIME              COMMENT '更新时间',
